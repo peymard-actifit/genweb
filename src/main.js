@@ -1,17 +1,14 @@
-import './style.css'
-import { supabase, checkSupabaseConnection } from './lib/supabase.js'
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import App from './App.vue'
+import router from './router'
+import './styles/main.css'
 
-console.log('🚀 Genweb initialized!')
+const app = createApp(App)
 
-// Vérifier la connexion Supabase au démarrage
-checkSupabaseConnection().then(connected => {
-  if (connected) {
-    console.log('✅ Supabase prêt')
-  } else {
-    console.log('⚠️ Supabase non configuré ou non connecté')
-  }
-})
+app.use(createPinia())
+app.use(router)
 
-// Export pour utilisation dans d'autres modules
-export { supabase }
+app.mount('#app')
 
+console.log('🚀 Studio Genweb initialized!')

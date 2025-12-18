@@ -1,0 +1,373 @@
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const isRegister = ref(false)
+const name = ref('')
+const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const localError = ref('')
+
+const canSubmit = computed(() => {
+  if (isRegister.value) {
+    return name.value && email.value && password.value && password.value === confirmPassword.value
+  }
+  return email.value && password.value
+})
+
+async function handleSubmit() {
+  localError.value = ''
+  
+  if (isRegister.value) {
+    if (password.value !== confirmPassword.value) {
+      localError.value = 'Les mots de passe ne correspondent pas'
+      return
+    }
+    const result = await authStore.register(name.value, email.value, password.value)
+    if (result.success) {
+      router.push('/sites')
+    } else {
+      localError.value = result.error
+    }
+  } else {
+    const result = await authStore.login(email.value, password.value)
+    if (result.success) {
+      router.push('/sites')
+    } else {
+      localError.value = result.error
+    }
+  }
+}
+
+function toggleMode() {
+  isRegister.value = !isRegister.value
+  localError.value = ''
+}
+</script>
+
+<template>
+  <div class="login-page">
+    <div class="login-container">
+      <!-- Logo et titre -->
+      <div class="login-header">
+        <div class="logo">
+          <span class="logo-icon">◈</span>
+          <span class="logo-text">Genweb</span>
+        </div>
+        <h1>{{ isRegister ? 'Créer un compte' : 'Connexion' }}</h1>
+        <p class="subtitle">Studio de création de sites web</p>
+      </div>
+
+      <!-- Formulaire -->
+      <form @submit.prevent="handleSubmit" class="login-form">
+        <!-- Nom (inscription uniquement) -->
+        <div v-if="isRegister" class="form-group">
+          <label for="name">Nom</label>
+          <input
+            id="name"
+            v-model="name"
+            type="text"
+            placeholder="Votre nom"
+            autocomplete="name"
+          />
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            v-model="email"
+            type="email"
+            placeholder="votre@email.com"
+            autocomplete="email"
+          />
+        </div>
+
+        <!-- Mot de passe -->
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+          />
+        </div>
+
+        <!-- Confirmation mot de passe (inscription uniquement) -->
+        <div v-if="isRegister" class="form-group">
+          <label for="confirmPassword">Confirmer le mot de passe</label>
+          <input
+            id="confirmPassword"
+            v-model="confirmPassword"
+            type="password"
+            placeholder="••••••••"
+            autocomplete="new-password"
+          />
+        </div>
+
+        <!-- Erreur -->
+        <div v-if="localError || authStore.error" class="error-message">
+          {{ localError || authStore.error }}
+        </div>
+
+        <!-- Bouton submit -->
+        <button
+          type="submit"
+          class="submit-btn"
+          :disabled="!canSubmit || authStore.loading"
+        >
+          <span v-if="authStore.loading" class="loader"></span>
+          <span v-else>{{ isRegister ? 'Créer le compte' : 'Se connecter' }}</span>
+        </button>
+      </form>
+
+      <!-- Toggle inscription/connexion -->
+      <div class="toggle-mode">
+        <span>{{ isRegister ? 'Déjà un compte ?' : 'Pas encore de compte ?' }}</span>
+        <button type="button" @click="toggleMode" class="toggle-btn">
+          {{ isRegister ? 'Se connecter' : 'Créer un compte' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Fond animé -->
+    <div class="background-effects">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.logo-icon {
+  font-size: 2.5rem;
+  color: var(--accent);
+  filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+
+.logo-text {
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-group input {
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.error-message {
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #ef4444;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.submit-btn {
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -5px var(--accent-glow);
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.toggle-mode {
+  margin-top: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 0.25rem;
+}
+
+.toggle-btn:hover {
+  text-decoration: underline;
+}
+
+/* Background effects */
+.background-effects {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: var(--accent);
+  top: -100px;
+  right: -100px;
+  animation: float 8s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 300px;
+  height: 300px;
+  background: var(--accent-secondary);
+  bottom: -50px;
+  left: -50px;
+  animation: float 10s ease-in-out infinite reverse;
+}
+
+.orb-3 {
+  width: 200px;
+  height: 200px;
+  background: #22d3ee;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulse 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(30px, 30px); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
+}
+</style>
+
