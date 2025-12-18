@@ -1,28 +1,28 @@
 /* ============================================================
-   GENWEB STUDIO - Styles Globaux
+   GENWEB STUDIO - Styles Globaux (Thème Clair)
    ============================================================ */
 
-/* Variables CSS */
+/* Variables CSS - Thème Clair */
 :root {
-  /* Couleurs principales */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-tertiary: #1a1a25;
-  --bg-hover: #22222f;
+  /* Couleurs de fond */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-hover: #e2e8f0;
 
   /* Bordures */
-  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color: #e2e8f0;
 
   /* Textes */
-  --text-primary: #f0f0f5;
-  --text-secondary: #a0a0b0;
-  --text-muted: #606070;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
 
   /* Accent */
   --accent: #6366f1;
   --accent-secondary: #818cf8;
-  --accent-hover: #5558e0;
-  --accent-glow: rgba(99, 102, 241, 0.25);
+  --accent-hover: #4f46e5;
+  --accent-glow: rgba(99, 102, 241, 0.15);
 
   /* Autres couleurs */
   --success: #22c55e;
@@ -45,10 +45,10 @@
   --radius-xl: 1rem;
 
   /* Ombres */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
 }
 
 /* Reset */
@@ -79,6 +79,7 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.25;
+  color: var(--text-primary);
 }
 
 a {
@@ -117,16 +118,16 @@ textarea::placeholder {
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--bg-tertiary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
+  background: var(--border-color);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-hover);
+  background: var(--text-muted);
 }
 
 /* Selection */
@@ -182,4 +183,3 @@ textarea::placeholder {
 .animate-pulse {
   animation: pulse 2s ease-in-out infinite;
 }
-

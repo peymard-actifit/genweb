@@ -67,32 +67,44 @@ export const useSitesStore = defineStore('sites', () => {
   async function createSite(name) {
     const authStore = useAuthStore()
     
+    if (!authStore.user?.id) {
+      return { success: false, error: 'Utilisateur non connecté' }
+    }
+    
     try {
-      const { data, error: err } = await supabase
+      console.log('Creating site:', name, 'for user:', authStore.user.id)
+      
+      // Créer le site
+      const { data: siteData, error: siteErr } = await supabase
         .from('sites')
         .insert({
           name,
-          owner_id: authStore.user?.id,
+          owner_id: authStore.user.id,
           settings: {
             appearance: {
               primaryColor: '#6366f1',
-              theme: 'dark'
+              theme: 'light'
             },
             login: {
               enabled: false,
               requireEmail: true
             },
-            navigation: 'tabs' // 'tabs' ou 'menu'
+            navigation: 'tabs'
           }
         })
         .select()
         .single()
       
-      if (err) throw err
+      if (siteErr) {
+        console.error('Erreur création site:', siteErr)
+        throw siteErr
+      }
+      
+      console.log('Site created:', siteData)
       
       // Créer la vue "Commun" par défaut
-      await supabase.from('site_views').insert({
-        site_id: data.id,
+      const { error: viewErr } = await supabase.from('site_views').insert({
+        site_id: siteData.id,
         name: 'Commun',
         type: 'common',
         order_index: 0,
@@ -100,10 +112,18 @@ export const useSitesStore = defineStore('sites', () => {
         settings: {}
       })
       
-      sites.value.unshift(data)
-      return { success: true, site: data }
+      if (viewErr) {
+        console.warn('Erreur création vue Commun:', viewErr)
+        // On continue quand même, la vue pourra être créée plus tard
+      }
+      
+      // Ajouter le site à la liste locale
+      sites.value.unshift(siteData)
+      
+      return { success: true, site: siteData }
     } catch (err) {
-      return { success: false, error: err.message }
+      console.error('Erreur createSite:', err)
+      return { success: false, error: err.message || 'Erreur lors de la création du site' }
     }
   }
 
@@ -212,4 +232,3 @@ export const useSitesStore = defineStore('sites', () => {
     publishSite
   }
 })
-

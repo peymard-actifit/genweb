@@ -35,7 +35,7 @@ const emit = defineEmits(['close'])
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -51,7 +51,7 @@ const emit = defineEmits(['close'])
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
@@ -109,4 +109,3 @@ const emit = defineEmits(['close'])
   transform: scale(0.95) translateY(-20px);
 }
 </style>
-

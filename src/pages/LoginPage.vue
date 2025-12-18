@@ -137,13 +137,6 @@ function toggleMode() {
         </button>
       </div>
     </div>
-
-    <!-- Fond animé -->
-    <div class="background-effects">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
   </div>
 </template>
 
@@ -153,21 +146,18 @@ function toggleMode() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
-  position: relative;
-  overflow: hidden;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+  padding: 1rem;
 }
 
 .login-container {
-  position: relative;
-  z-index: 10;
   width: 100%;
   max-width: 420px;
   padding: 2.5rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 1rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
 }
 
 .login-header {
@@ -186,16 +176,12 @@ function toggleMode() {
 .logo-icon {
   font-size: 2.5rem;
   color: var(--accent);
-  filter: drop-shadow(0 0 10px var(--accent-glow));
 }
 
 .logo-text {
   font-size: 1.75rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 .login-header h1 {
@@ -253,14 +239,14 @@ function toggleMode() {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 0.5rem;
-  color: #ef4444;
+  color: #dc2626;
   font-size: 0.875rem;
   text-align: center;
 }
 
 .submit-btn {
   padding: 0.875rem 1.5rem;
-  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  background: var(--accent);
   border: none;
   border-radius: 0.5rem;
   color: white;
@@ -275,8 +261,9 @@ function toggleMode() {
 }
 
 .submit-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px var(--accent-glow);
+  box-shadow: var(--shadow-md);
 }
 
 .submit-btn:disabled {
@@ -316,58 +303,4 @@ function toggleMode() {
 .toggle-btn:hover {
   text-decoration: underline;
 }
-
-/* Background effects */
-.background-effects {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-}
-
-.orb-1 {
-  width: 400px;
-  height: 400px;
-  background: var(--accent);
-  top: -100px;
-  right: -100px;
-  animation: float 8s ease-in-out infinite;
-}
-
-.orb-2 {
-  width: 300px;
-  height: 300px;
-  background: var(--accent-secondary);
-  bottom: -50px;
-  left: -50px;
-  animation: float 10s ease-in-out infinite reverse;
-}
-
-.orb-3 {
-  width: 200px;
-  height: 200px;
-  background: #22d3ee;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: pulse 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(30px, 30px); }
-}
-
-@keyframes pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
-  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
-}
 </style>
-

@@ -14,6 +14,7 @@ const showDeleteModal = ref(false)
 const newSiteName = ref('')
 const siteToDelete = ref(null)
 const creating = ref(false)
+const createError = ref('')
 
 onMounted(async () => {
   await sitesStore.fetchSites()
@@ -23,17 +24,25 @@ async function createSite() {
   if (!newSiteName.value.trim()) return
   
   creating.value = true
+  createError.value = ''
+  
   const result = await sitesStore.createSite(newSiteName.value.trim())
+  
   creating.value = false
   
   if (result.success) {
     showCreateModal.value = false
     newSiteName.value = ''
+    // Ouvrir directement le site créé dans le studio
+    router.push(`/studio/${result.site.id}`)
+  } else {
+    createError.value = result.error || 'Erreur lors de la création du site'
   }
 }
 
 function openCreateModal() {
   newSiteName.value = ''
+  createError.value = ''
   showCreateModal.value = true
 }
 
@@ -65,20 +74,11 @@ async function publishSite(siteId) {
 
 <template>
   <div class="sites-page">
-    <HeaderBar title="Page de sélection des sites" />
+    <HeaderBar title="Page de sélection des sites" @create="openCreateModal" :showCreateButton="true" />
     
     <main class="sites-content">
-      <!-- Bouton créer -->
-      <div class="sites-header">
-        <h2>Mes sites</h2>
-        <button class="create-btn" @click="openCreateModal">
-          <span class="icon">+</span>
-          Nouveau site
-        </button>
-      </div>
-
       <!-- Liste des sites -->
-      <div class="sites-grid">
+      <div class="sites-grid" v-if="sitesStore.mySites.length > 0">
         <SiteTile
           v-for="site in sitesStore.mySites"
           :key="site.id"
@@ -88,17 +88,13 @@ async function publishSite(siteId) {
           @duplicate="duplicateSite(site.id)"
           @publish="publishSite(site.id)"
         />
+      </div>
 
-        <!-- État vide -->
-        <div v-if="sitesStore.mySites.length === 0 && !sitesStore.loading" class="empty-state">
-          <div class="empty-icon">◈</div>
-          <h3>Aucun site</h3>
-          <p>Créez votre premier site pour commencer</p>
-          <button class="create-btn" @click="openCreateModal">
-            <span class="icon">+</span>
-            Créer un site
-          </button>
-        </div>
+      <!-- État vide -->
+      <div v-else-if="!sitesStore.loading" class="empty-state">
+        <div class="empty-icon">📁</div>
+        <h3>Aucun site</h3>
+        <p>Créez votre premier site pour commencer</p>
       </div>
 
       <!-- Loading -->
@@ -125,12 +121,18 @@ async function publishSite(siteId) {
             autofocus
           />
         </div>
+        
+        <!-- Message d'erreur -->
+        <div v-if="createError" class="error-message">
+          {{ createError }}
+        </div>
+        
         <div class="modal-actions">
           <button type="button" class="btn-secondary" @click="showCreateModal = false">
             Annuler
           </button>
           <button type="submit" class="btn-primary" :disabled="!newSiteName.trim() || creating">
-            {{ creating ? 'Création...' : 'Créer' }}
+            {{ creating ? 'Création...' : 'Créer le site' }}
           </button>
         </div>
       </form>
@@ -174,43 +176,6 @@ async function publishSite(siteId) {
   width: 100%;
 }
 
-.sites-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.sites-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.create-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-  border: none;
-  border-radius: 0.5rem;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px var(--accent-glow);
-}
-
-.create-btn .icon {
-  font-size: 1.25rem;
-  font-weight: 300;
-}
-
 .sites-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -218,7 +183,6 @@ async function publishSite(siteId) {
 }
 
 .empty-state {
-  grid-column: 1 / -1;
   text-align: center;
   padding: 4rem 2rem;
   background: var(--bg-secondary);
@@ -228,9 +192,7 @@ async function publishSite(siteId) {
 
 .empty-icon {
   font-size: 4rem;
-  color: var(--accent);
   margin-bottom: 1rem;
-  filter: drop-shadow(0 0 20px var(--accent-glow));
 }
 
 .empty-state h3 {
@@ -241,7 +203,6 @@ async function publishSite(siteId) {
 
 .empty-state p {
   color: var(--text-muted);
-  margin-bottom: 1.5rem;
 }
 
 .loading {
@@ -297,6 +258,15 @@ async function publishSite(siteId) {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.error-message {
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #dc2626;
+  font-size: 0.875rem;
 }
 
 .modal-actions {
@@ -361,9 +331,8 @@ async function publishSite(siteId) {
 }
 
 .delete-confirm .warning {
-  color: #ef4444;
+  color: #dc2626;
   font-size: 0.875rem;
   margin-bottom: 1.5rem;
 }
 </style>
-

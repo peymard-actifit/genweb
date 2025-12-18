@@ -7,8 +7,14 @@ const props = defineProps({
   title: {
     type: String,
     default: 'Studio Genweb'
+  },
+  showCreateButton: {
+    type: Boolean,
+    default: false
   }
 })
+
+const emit = defineEmits(['create'])
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -19,9 +25,9 @@ const showAdminModal = ref(false)
 const adminCode = ref('')
 const adminError = ref('')
 
-// Version du commit (sera injectée au build)
+// Version du commit
 const commitVersion = computed(() => {
-  return import.meta.env.VITE_COMMIT_VERSION || 'v0.2.0'
+  return import.meta.env.VITE_COMMIT_VERSION || 'v0.2.4'
 })
 
 function toggleUserMenu() {
@@ -77,12 +83,20 @@ async function logout() {
       <h1 class="header-title">{{ title }}</h1>
     </div>
 
-    <!-- Droite: Menu utilisateur -->
+    <!-- Droite: Bouton créer + Menu utilisateur -->
     <div class="header-right">
+      <!-- Bouton créer un site -->
+      <button v-if="showCreateButton" class="create-btn" @click="emit('create')">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        Nouveau site
+      </button>
+
+      <!-- Menu utilisateur -->
       <div class="user-menu-container" @click.stop>
         <button class="user-btn" @click="toggleUserMenu">
           <span class="user-avatar">{{ authStore.userName.charAt(0).toUpperCase() }}</span>
-          <span class="user-name">{{ authStore.userName }}</span>
           <span v-if="authStore.isAdmin" class="admin-badge">Admin</span>
           <svg class="chevron" :class="{ open: showUserMenu }" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -92,6 +106,9 @@ async function logout() {
         <!-- Menu déroulant -->
         <Transition name="dropdown">
           <div v-if="showUserMenu" class="user-dropdown">
+            <div class="dropdown-header">
+              <span class="user-name-full">{{ authStore.userName }}</span>
+            </div>
             <button class="dropdown-item" @click="openProfile">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
@@ -102,7 +119,7 @@ async function logout() {
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
               </svg>
-              {{ authStore.isAdmin ? 'Quitter mode admin' : 'Passer administrateur' }}
+              {{ authStore.isAdmin ? 'Quitter mode admin' : 'Mode administrateur' }}
             </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item logout" @click="logout">
@@ -172,12 +189,13 @@ async function logout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
-  padding: 0 1rem;
+  height: 56px;
+  padding: 0 1.5rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   position: relative;
   z-index: 100;
+  box-shadow: var(--shadow-sm);
 }
 
 .header-left,
@@ -189,6 +207,7 @@ async function logout() {
 
 .header-right {
   justify-content: flex-end;
+  gap: 1rem;
 }
 
 .header-center {
@@ -204,13 +223,39 @@ async function logout() {
 }
 
 .version-badge {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 0.25rem;
   color: var(--text-muted);
+}
+
+.create-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.create-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.create-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .user-menu-container {
@@ -236,25 +281,16 @@ async function logout() {
 }
 
 .user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  background: var(--accent);
   border-radius: 50%;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: white;
-}
-
-.user-name {
-  font-size: 0.875rem;
-  font-weight: 500;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .admin-badge {
@@ -263,7 +299,7 @@ async function logout() {
   padding: 0.125rem 0.375rem;
   background: #f59e0b;
   border-radius: 0.25rem;
-  color: black;
+  color: white;
   text-transform: uppercase;
 }
 
@@ -282,13 +318,24 @@ async function logout() {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
-  min-width: 200px;
+  min-width: 220px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   z-index: 200;
+}
+
+.dropdown-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.user-name-full {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .dropdown-item {
@@ -352,7 +399,7 @@ async function logout() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,6 +413,7 @@ async function logout() {
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   overflow: hidden;
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
@@ -438,7 +486,7 @@ async function logout() {
   padding: 0.5rem 0.75rem;
   background: rgba(239, 68, 68, 0.1);
   border-radius: 0.375rem;
-  color: #ef4444;
+  color: #dc2626;
   font-size: 0.875rem;
   margin-bottom: 1rem;
 }
@@ -475,4 +523,3 @@ async function logout() {
   padding: 2rem;
 }
 </style>
-

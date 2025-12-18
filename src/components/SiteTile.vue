@@ -28,7 +28,7 @@ const formattedDate = computed(() => {
 </script>
 
 <template>
-  <div class="site-tile">
+  <div class="site-tile" @click="emit('open')">
     <div class="tile-header">
       <h3 class="site-name">{{ site.name }}</h3>
       <span v-if="site.is_published" class="published-badge">Publié</span>
@@ -38,7 +38,7 @@ const formattedDate = computed(() => {
       <span class="date">Créé le {{ formattedDate }}</span>
     </div>
 
-    <div class="tile-actions">
+    <div class="tile-actions" @click.stop>
       <button class="action-btn primary" @click="emit('open')" title="Ouvrir dans le studio">
         <svg viewBox="0 0 20 20" fill="currentColor">
           <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -82,11 +82,13 @@ const formattedDate = computed(() => {
   border-radius: 0.75rem;
   padding: 1.25rem;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
 .site-tile:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .tile-header {
@@ -110,10 +112,10 @@ const formattedDate = computed(() => {
   font-size: 0.625rem;
   font-weight: 600;
   padding: 0.25rem 0.5rem;
-  background: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 0.25rem;
-  color: #22c55e;
+  color: #16a34a;
   text-transform: uppercase;
   flex-shrink: 0;
 }
@@ -174,17 +176,16 @@ const formattedDate = computed(() => {
 .action-btn.danger:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  color: #dc2626;
 }
 
 .action-btn.public-link {
   background: rgba(34, 197, 94, 0.1);
   border-color: rgba(34, 197, 94, 0.3);
-  color: #22c55e;
+  color: #16a34a;
 }
 
 .action-btn.public-link:hover {
   background: rgba(34, 197, 94, 0.2);
 }
 </style>
-

@@ -172,3 +172,4 @@ BEGIN
   RAISE NOTICE 'RLS activé sur toutes les tables';
 END $$;
 
+
