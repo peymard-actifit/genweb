@@ -65,8 +65,10 @@ Write-Signal "SUCCESS" "Nouvelle version: v$newVersion"
 
 # 3. Mettre a jour package.json
 Write-Signal "STEP" "Mise a jour de package.json..."
-$packageJson.version = $newVersion
-$packageJson | ConvertTo-Json -Depth 10 | Set-Content "package.json" -Encoding UTF8
+# Lire le fichier, remplacer la version avec regex pour garder le format
+$content = Get-Content "package.json" -Raw
+$content = $content -replace '"version":\s*"[^"]*"', "`"version`": `"$newVersion`""
+[System.IO.File]::WriteAllText("$projectPath\package.json", $content, [System.Text.UTF8Encoding]::new($false))
 Write-Signal "SUCCESS" "package.json mis a jour"
 
 # 4. Verifier s il y a des changements a commiter
