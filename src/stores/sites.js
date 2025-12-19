@@ -214,6 +214,65 @@ export const useSitesStore = defineStore('sites', () => {
     }
   }
 
+  async function addView(siteId, viewType, viewName) {
+    try {
+      const existingViews = currentSite.value?.site_views || []
+      const count = existingViews.filter(v => v.type === viewType).length
+      const name = viewName || (count > 0 ? `${viewType} ${count + 1}` : viewType)
+      
+      const { data, error: err } = await supabase
+        .from('site_views')
+        .insert({
+          site_id: siteId,
+          name,
+          type: viewType,
+          order_index: existingViews.length,
+          is_deletable: true,
+          settings: {}
+        })
+        .select()
+        .single()
+      
+      if (err) throw err
+      
+      // Mettre à jour le currentSite avec la nouvelle vue
+      if (currentSite.value && currentSite.value.id === siteId) {
+        currentSite.value = {
+          ...currentSite.value,
+          site_views: [...(currentSite.value.site_views || []), data]
+        }
+      }
+      
+      return { success: true, view: data }
+    } catch (err) {
+      console.error('Erreur création vue:', err)
+      return { success: false, error: err.message }
+    }
+  }
+
+  async function deleteView(viewId) {
+    try {
+      const { error: err } = await supabase
+        .from('site_views')
+        .delete()
+        .eq('id', viewId)
+      
+      if (err) throw err
+      
+      // Mettre à jour le currentSite
+      if (currentSite.value) {
+        currentSite.value = {
+          ...currentSite.value,
+          site_views: currentSite.value.site_views.filter(v => v.id !== viewId)
+        }
+      }
+      
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }
+
   return {
     // State
     sites,
@@ -229,6 +288,8 @@ export const useSitesStore = defineStore('sites', () => {
     updateSite,
     deleteSite,
     duplicateSite,
-    publishSite
+    publishSite,
+    addView,
+    deleteView
   }
 })

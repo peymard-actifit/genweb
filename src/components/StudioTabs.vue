@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { supabase } from '@/lib/supabase'
+import { useSitesStore } from '@/stores/sites'
 
 const props = defineProps({
   views: {
@@ -18,8 +18,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['select'])
+const sitesStore = useSitesStore()
 
 const showAddMenu = ref(false)
+const isAdding = ref(false)
 
 const viewTypes = [
   { type: 'media', name: 'Médias', icon: '🖼️', description: 'Photos, vidéos, fichiers' },
@@ -28,27 +30,22 @@ const viewTypes = [
 ]
 
 async function addView(viewType) {
+  if (isAdding.value) return
+  isAdding.value = true
+  
   const count = props.views.filter(v => v.type === viewType.type).length
   const name = count > 0 ? `${viewType.name} ${count + 1}` : viewType.name
   
-  const { data, error } = await supabase
-    .from('site_views')
-    .insert({
-      site_id: props.siteId,
-      name,
-      type: viewType.type,
-      order_index: props.views.length,
-      is_deletable: true,
-      settings: {}
-    })
-    .select()
-    .single()
+  const result = await sitesStore.addView(props.siteId, viewType.type, name)
   
-  if (!error && data) {
-    emit('select', data.id)
+  if (result.success && result.view) {
+    emit('select', result.view.id)
+  } else {
+    console.error('Erreur lors de la création de la vue:', result.error)
   }
   
   showAddMenu.value = false
+  isAdding.value = false
 }
 </script>
 
