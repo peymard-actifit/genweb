@@ -13,12 +13,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'selectView'])
 const sitesStore = useSitesStore()
 
 const expandedSections = ref(['site'])
 const editedSiteName = ref('')
 const saving = ref(false)
+const showDeleteConfirm = ref(false)
 
 // Initialiser le nom du site
 watch(() => props.site?.name, (newName) => {
@@ -26,6 +27,15 @@ watch(() => props.site?.name, (newName) => {
 }, { immediate: true })
 
 const isCommonView = computed(() => props.activeView?.type === 'common')
+const canModifyView = computed(() => props.activeView?.is_deletable !== false)
+
+// Titre dynamique : Site / Nom de la vue active
+const sectionTitle = computed(() => {
+  if (props.activeView?.name) {
+    return `Site / ${props.activeView.name}`
+  }
+  return 'Site'
+})
 
 function toggleSection(section) {
   const index = expandedSections.value.indexOf(section)
@@ -47,6 +57,46 @@ async function saveSiteName() {
   await sitesStore.updateSite(props.site.id, { name: editedSiteName.value.trim() })
   saving.value = false
 }
+
+// Dupliquer la vue active
+async function duplicateView() {
+  if (!props.activeView || !props.site) return
+  
+  const baseName = props.activeView.name.replace(/ \(\d+\)$/, '')
+  const views = props.site.site_views || []
+  const existingNumbers = views
+    .filter(v => v.name.startsWith(baseName))
+    .map(v => {
+      const match = v.name.match(/\((\d+)\)$/)
+      return match ? parseInt(match[1]) : 0
+    })
+  const nextNumber = Math.max(...existingNumbers, 0) + 1
+  const newName = `${baseName} (${nextNumber})`
+  
+  const result = await sitesStore.addView(props.site.id, props.activeView.type, newName)
+  
+  if (result.success && result.view) {
+    emit('selectView', result.view.id)
+  }
+}
+
+// Supprimer la vue active
+async function deleteView() {
+  if (!props.activeView) return
+  
+  const viewId = props.activeView.id
+  const result = await sitesStore.deleteView(viewId)
+  
+  if (result.success) {
+    // Sélectionner la première vue restante
+    const remainingViews = (props.site?.site_views || []).filter(v => v.id !== viewId)
+    if (remainingViews.length > 0) {
+      emit('selectView', remainingViews[0].id)
+    }
+  }
+  
+  showDeleteConfirm.value = false
+}
 </script>
 
 <template>
@@ -61,36 +111,63 @@ async function saveSiteName() {
     </div>
 
     <div class="panel-content">
-      <!-- Sections pour la vue Commun -->
-      <template v-if="isCommonView">
-        <!-- Section Site -->
-        <div class="section">
+      <!-- Section Site / Vue (toujours visible) -->
+      <div class="section section-main">
+        <div class="section-header-with-actions">
           <button class="section-header" @click="toggleSection('site')">
             <span class="section-icon">🏠</span>
-            <span class="section-title">Site</span>
+            <span class="section-title">{{ sectionTitle }}</span>
             <svg class="chevron" :class="{ expanded: isSectionExpanded('site') }" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
             </svg>
           </button>
-          <Transition name="expand">
-            <div v-if="isSectionExpanded('site')" class="section-content">
-              <div class="form-group">
-                <label>Nom du site</label>
-                <div class="input-with-btn">
-                  <input v-model="editedSiteName" type="text" placeholder="Nom du site" />
-                  <button 
-                    class="save-btn" 
-                    @click="saveSiteName" 
-                    :disabled="saving || editedSiteName === site?.name"
-                  >
-                    {{ saving ? '...' : '✓' }}
-                  </button>
-                </div>
+          <!-- Boutons d'action pour la vue (sauf Commun) -->
+          <div v-if="canModifyView" class="view-actions">
+            <button class="view-action-btn duplicate" @click="duplicateView" title="Dupliquer la vue">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
+              </svg>
+            </button>
+            <button class="view-action-btn delete" @click="showDeleteConfirm = true" title="Supprimer la vue">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Popup de confirmation de suppression -->
+        <div v-if="showDeleteConfirm" class="delete-confirm-overlay">
+          <div class="delete-confirm-popup">
+            <p>Supprimer "{{ activeView?.name }}" ?</p>
+            <div class="delete-confirm-actions">
+              <button class="btn-cancel" @click="showDeleteConfirm = false">Annuler</button>
+              <button class="btn-delete" @click="deleteView">Supprimer</button>
+            </div>
+          </div>
+        </div>
+        <Transition name="expand">
+          <div v-if="isSectionExpanded('site')" class="section-content">
+            <div class="form-group">
+              <label>Nom du site</label>
+              <div class="input-with-btn">
+                <input v-model="editedSiteName" type="text" placeholder="Nom du site" />
+                <button 
+                  class="save-btn" 
+                  @click="saveSiteName" 
+                  :disabled="saving || editedSiteName === site?.name"
+                >
+                  {{ saving ? '...' : '✓' }}
+                </button>
               </div>
             </div>
-          </Transition>
-        </div>
+          </div>
+        </Transition>
+      </div>
 
+      <!-- Sections pour la vue Commun -->
+      <template v-if="isCommonView">
         <!-- Section Login -->
         <div class="section">
           <button class="section-header" @click="toggleSection('login')">
@@ -285,6 +362,21 @@ async function saveSiteName() {
   border-radius: 0.5rem;
   margin-bottom: 0.5rem;
   overflow: hidden;
+  position: relative;
+}
+
+.section-main {
+  overflow: visible;
+}
+
+.section-header-with-actions {
+  display: flex;
+  align-items: center;
+}
+
+.section-header-with-actions .section-header {
+  flex: 1;
+  border-radius: 0.5rem 0 0 0;
 }
 
 .section-header {
@@ -313,6 +405,115 @@ async function saveSiteName() {
 
 .section-title {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Actions sur la vue */
+.view-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.5rem;
+  background: var(--bg-tertiary);
+  border-left: 1px solid var(--border-color);
+}
+
+.view-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.view-action-btn.duplicate {
+  color: var(--text-muted);
+}
+
+.view-action-btn.duplicate:hover {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.view-action-btn.delete {
+  color: var(--text-muted);
+}
+
+.view-action-btn.delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Popup de confirmation */
+.delete-confirm-overlay {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 0.5rem;
+}
+
+.delete-confirm-popup {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.875rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.delete-confirm-popup p {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem 0;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel, .btn-delete {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-cancel {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.btn-cancel:hover {
+  background: var(--bg-hover);
+}
+
+.btn-delete {
+  background: #ef4444;
+  border: none;
+  color: white;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
 }
 
 .chevron {

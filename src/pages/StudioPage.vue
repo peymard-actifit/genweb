@@ -108,6 +108,7 @@ function goBack() {
           :site="site"
           :active-view="activeView"
           @close="showEditPanel = false"
+          @select-view="selectView"
         />
       </Transition>
     </div>
