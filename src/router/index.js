@@ -23,6 +23,12 @@ const routes = [
     name: 'Studio',
     component: () => import('@/pages/StudioPage.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/p/:slug',
+    name: 'PublicSite',
+    component: () => import('@/pages/PublicSitePage.vue'),
+    meta: { requiresAuth: false }
   }
 ]
 

@@ -18,7 +18,9 @@ const sitesStore = useSitesStore()
 
 const expandedSections = ref(['site'])
 const editedSiteName = ref('')
+const editedViewName = ref('')
 const saving = ref(false)
+const savingView = ref(false)
 const showDeleteConfirm = ref(false)
 
 // Initialiser le nom du site
@@ -26,8 +28,24 @@ watch(() => props.site?.name, (newName) => {
   if (newName) editedSiteName.value = newName
 }, { immediate: true })
 
+// Initialiser le nom de la vue
+watch(() => props.activeView?.name, (newName) => {
+  if (newName) editedViewName.value = newName
+}, { immediate: true })
+
 const isCommonView = computed(() => props.activeView?.type === 'common')
 const canModifyView = computed(() => props.activeView?.is_deletable !== false)
+
+// Labels pour les types de vues
+const viewTypeLabel = computed(() => {
+  const types = {
+    calculs: 'Calculs',
+    media: 'Médias',
+    gestion: 'Gestion',
+    custom: 'Personnalisée'
+  }
+  return types[props.activeView?.type] || props.activeView?.type
+})
 
 // Titre dynamique : Site / Nom de la vue active
 const sectionTitle = computed(() => {
@@ -96,6 +114,23 @@ async function deleteView() {
   }
   
   showDeleteConfirm.value = false
+}
+
+// Sauvegarder le nom de la vue
+async function saveViewName() {
+  if (!editedViewName.value.trim() || !props.activeView) return
+  
+  savingView.value = true
+  await sitesStore.updateView(props.activeView.id, { name: editedViewName.value.trim() })
+  savingView.value = false
+}
+
+// Basculer le statut publiable
+async function togglePublishable(event) {
+  if (!props.activeView) return
+  
+  const isPublishable = event.target.checked
+  await sitesStore.updateView(props.activeView.id, { is_publishable: isPublishable })
 }
 </script>
 
@@ -269,10 +304,30 @@ async function deleteView() {
             <div v-if="isSectionExpanded('view-settings')" class="section-content">
               <div class="form-group">
                 <label>Nom de la vue</label>
-                <input type="text" :value="activeView?.name" placeholder="Nom" />
+                <div class="input-with-btn">
+                  <input v-model="editedViewName" type="text" placeholder="Nom" />
+                  <button 
+                    class="save-btn" 
+                    @click="saveViewName" 
+                    :disabled="savingView || editedViewName === activeView?.name"
+                  >
+                    {{ savingView ? '...' : '✓' }}
+                  </button>
+                </div>
               </div>
               <div class="form-group">
-                <label>Type: {{ activeView?.type }}</label>
+                <label class="checkbox-label publishable-toggle">
+                  <input 
+                    type="checkbox" 
+                    :checked="activeView?.is_publishable" 
+                    @change="togglePublishable"
+                  />
+                  <span>Publiable</span>
+                  <span class="publishable-hint">Visible sur le site publié</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="type-label">Type: {{ viewTypeLabel }}</label>
               </div>
             </div>
           </Transition>
@@ -598,6 +653,23 @@ async function deleteView() {
   font-size: 0.8125rem;
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+.publishable-toggle {
+  flex-wrap: wrap;
+}
+
+.publishable-hint {
+  flex-basis: 100%;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-left: 1.25rem;
+  margin-top: 0.125rem;
+}
+
+.type-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .radio-group {

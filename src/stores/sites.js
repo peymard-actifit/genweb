@@ -273,6 +273,57 @@ export const useSitesStore = defineStore('sites', () => {
     }
   }
 
+  async function updateView(viewId, updates) {
+    try {
+      const { data, error: err } = await supabase
+        .from('site_views')
+        .update(updates)
+        .eq('id', viewId)
+        .select()
+        .single()
+      
+      if (err) throw err
+      
+      // Mettre à jour le currentSite
+      if (currentSite.value) {
+        const viewIndex = currentSite.value.site_views.findIndex(v => v.id === viewId)
+        if (viewIndex !== -1) {
+          currentSite.value.site_views[viewIndex] = data
+          // Force la réactivité
+          currentSite.value = { ...currentSite.value }
+        }
+      }
+      
+      return { success: true, view: data }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }
+
+  async function fetchPublicSite(slug) {
+    try {
+      const { data, error: err } = await supabase
+        .from('sites')
+        .select('*, site_views(*)')
+        .eq('public_slug', slug)
+        .eq('is_published', true)
+        .single()
+      
+      if (err) throw err
+      
+      // Filtrer uniquement les vues publiables (sauf "common" qui est toujours visible si le site est publié)
+      if (data && data.site_views) {
+        data.site_views = data.site_views.filter(v => 
+          v.type === 'common' || v.is_publishable === true
+        )
+      }
+      
+      return { success: true, site: data }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }
+
   return {
     // State
     sites,
@@ -284,12 +335,14 @@ export const useSitesStore = defineStore('sites', () => {
     // Actions
     fetchSites,
     fetchSite,
+    fetchPublicSite,
     createSite,
     updateSite,
     deleteSite,
     duplicateSite,
     publishSite,
     addView,
+    updateView,
     deleteView
   }
 })
