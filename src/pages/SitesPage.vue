@@ -70,6 +70,10 @@ async function duplicateSite(siteId) {
 async function publishSite(siteId) {
   await sitesStore.publishSite(siteId)
 }
+
+async function unpublishSite(siteId) {
+  await sitesStore.unpublishSite(siteId)
+}
 </script>
 
 <template>
@@ -87,6 +91,7 @@ async function publishSite(siteId) {
           @delete="confirmDelete(site)"
           @duplicate="duplicateSite(site.id)"
           @publish="publishSite(site.id)"
+          @unpublish="unpublishSite(site.id)"
         />
       </div>
 

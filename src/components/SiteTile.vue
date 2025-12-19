@@ -8,10 +8,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['open', 'delete', 'duplicate', 'publish'])
+const emit = defineEmits(['open', 'delete', 'duplicate', 'publish', 'unpublish'])
+
+const isPublished = computed(() => props.site.is_published)
 
 const publicUrl = computed(() => {
-  if (props.site.is_published && props.site.public_slug) {
+  if (props.site.public_slug) {
     return `/p/${props.site.public_slug}`
   }
   return null
@@ -44,9 +46,25 @@ const formattedDate = computed(() => {
           </svg>
         </button>
 
-        <button class="action-btn publish" @click="emit('publish')" title="Publier">
+        <!-- Bouton Publier / Dépublier -->
+        <button 
+          v-if="!isPublished"
+          class="action-btn publish" 
+          @click="emit('publish')" 
+          title="Publier"
+        >
           <svg viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+          </svg>
+        </button>
+        <button 
+          v-else
+          class="action-btn unpublish" 
+          @click="emit('unpublish')" 
+          title="Dépublier"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
           </svg>
         </button>
 
@@ -69,14 +87,28 @@ const formattedDate = computed(() => {
       </span>
     </div>
 
-    <!-- Lien vers le site publié -->
-    <a v-if="publicUrl" :href="publicUrl" target="_blank" class="public-link">
-      <svg viewBox="0 0 20 20" fill="currentColor">
-        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-      </svg>
-      Voir le site publié
-    </a>
+    <!-- URL du site -->
+    <div v-if="publicUrl" class="url-section">
+      <a 
+        v-if="isPublished" 
+        :href="publicUrl" 
+        target="_blank" 
+        class="public-link"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+        </svg>
+        Voir le site publié
+      </a>
+      <div v-else class="url-offline">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd" />
+        </svg>
+        <span class="url-text">{{ publicUrl }}</span>
+        <span class="offline-badge">Hors ligne</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -156,6 +188,15 @@ const formattedDate = computed(() => {
   background: rgba(99, 102, 241, 0.1);
 }
 
+.action-btn.unpublish {
+  color: #16a34a;
+}
+
+.action-btn.unpublish:hover {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .action-btn.danger:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
@@ -214,5 +255,46 @@ const formattedDate = computed(() => {
 .public-link:hover {
   background: rgba(34, 197, 94, 0.15);
   border-color: rgba(34, 197, 94, 0.4);
+}
+
+.url-section {
+  margin-top: 0.75rem;
+}
+
+.url-offline {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+
+.url-offline svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.url-text {
+  color: var(--text-muted);
+  font-family: monospace;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offline-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 0.25rem;
+  color: #dc2626;
+  flex-shrink: 0;
 }
 </style>

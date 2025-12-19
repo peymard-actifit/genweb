@@ -187,7 +187,10 @@ export const useSitesStore = defineStore('sites', () => {
   }
 
   async function publishSite(siteId) {
-    const slug = `site-${siteId.substring(0, 8)}`
+    // Récupérer le site pour voir s'il a déjà un slug
+    const existingSite = sites.value.find(s => s.id === siteId)
+    // Garder le slug existant ou en créer un nouveau (URL fixe)
+    const slug = existingSite?.public_slug || `site-${siteId.substring(0, 8)}`
     
     try {
       const { data, error: err } = await supabase
@@ -209,6 +212,31 @@ export const useSitesStore = defineStore('sites', () => {
       }
       
       return { success: true, url: `/p/${slug}` }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }
+
+  async function unpublishSite(siteId) {
+    try {
+      const { data, error: err } = await supabase
+        .from('sites')
+        .update({
+          is_published: false
+          // On garde le public_slug pour pouvoir republier sur la même URL
+        })
+        .eq('id', siteId)
+        .select()
+        .single()
+      
+      if (err) throw err
+      
+      const index = sites.value.findIndex(s => s.id === siteId)
+      if (index !== -1) {
+        sites.value[index] = data
+      }
+      
+      return { success: true }
     } catch (err) {
       return { success: false, error: err.message }
     }
@@ -342,6 +370,7 @@ export const useSitesStore = defineStore('sites', () => {
     deleteSite,
     duplicateSite,
     publishSite,
+    unpublishSite,
     addView,
     updateView,
     deleteView
