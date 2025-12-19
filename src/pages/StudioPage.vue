@@ -7,6 +7,7 @@ import StudioTabs from '@/components/StudioTabs.vue'
 import EditPanel from '@/components/EditPanel.vue'
 import ViewCommon from '@/components/views/ViewCommon.vue'
 import ViewCustom from '@/components/views/ViewCustom.vue'
+import ViewDataExcel from '@/components/views/ViewDataExcel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,14 +56,27 @@ function goBack() {
   <div class="studio-page">
     <HeaderBar title="Studio Genweb" />
 
-    <!-- Barre de navigation du site -->
-    <div class="studio-nav">
-      <button class="back-btn" @click="goBack">
+    <!-- Barre unifiée : navigation + onglets -->
+    <div class="studio-toolbar">
+      <button class="back-btn" @click="goBack" title="Retour aux sites">
         <svg viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
       </button>
+      
       <span class="site-name">{{ site?.name || 'Chargement...' }}</span>
+      
+      <div class="toolbar-separator"></div>
+      
+      <!-- Onglets des vues intégrés -->
+      <StudioTabs
+        :views="views"
+        :active-view-id="activeViewId"
+        :site-id="siteId"
+        @select="selectView"
+        class="inline-tabs"
+      />
+      
       <button class="toggle-panel-btn" @click="toggleEditPanel" :class="{ active: showEditPanel }">
         <svg viewBox="0 0 20 20" fill="currentColor">
           <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
@@ -71,23 +85,18 @@ function goBack() {
       </button>
     </div>
 
-    <!-- Onglets des vues -->
-    <StudioTabs
-      :views="views"
-      :active-view-id="activeViewId"
-      :site-id="siteId"
-      @select="selectView"
-    />
-
     <!-- Zone de travail -->
     <div class="studio-workspace" :class="{ 'panel-open': showEditPanel }">
       <!-- Zone de prévisualisation -->
-      <main class="preview-area">
-        <div class="preview-container">
+      <main class="preview-area" :class="{ 'full-height': activeView?.type === 'dataexcel' }">
+        <div class="preview-container" :class="{ 'no-padding': activeView?.type === 'dataexcel' }">
           <!-- Vue Commun -->
           <ViewCommon v-if="activeView?.type === 'common'" :site="site" :view="activeView" />
           
-          <!-- Vue Custom -->
+          <!-- Vue Data Excel -->
+          <ViewDataExcel v-else-if="activeView?.type === 'dataexcel'" :site="site" :view="activeView" />
+          
+          <!-- Vue Custom (média, gestion, custom) -->
           <ViewCustom v-else :site="site" :view="activeView" />
         </div>
       </main>
@@ -113,27 +122,30 @@ function goBack() {
   flex-direction: column;
 }
 
-.studio-nav {
+/* Barre d'outils unifiée */
+.studio-toolbar {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  min-height: 44px;
 }
 
 .back-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .back-btn:hover {
@@ -142,35 +154,53 @@ function goBack() {
 }
 
 .back-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .site-name {
-  flex: 1;
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  margin: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.inline-tabs {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 
 .toggle-panel-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.375rem;
+  padding: 0.375rem 0.625rem;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   color: var(--text-secondary);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .toggle-panel-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .toggle-panel-btn:hover {
@@ -192,15 +222,25 @@ function goBack() {
 .preview-area {
   flex: 1;
   overflow: auto;
-  padding: 1.5rem;
+  padding: 1rem;
+}
+
+.preview-area.full-height {
+  padding: 0;
 }
 
 .preview-container {
+  height: 100%;
   min-height: 100%;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   overflow: hidden;
+}
+
+.preview-container.no-padding {
+  border-radius: 0;
+  border: none;
 }
 
 /* Animation du panel */
