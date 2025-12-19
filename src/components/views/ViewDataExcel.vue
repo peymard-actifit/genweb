@@ -623,12 +623,6 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
           <span class="badge" v-if="sourceCount > 0">{{ readySources }}/{{ sourceCount }}</span>
         </div>
         <div class="section-actions">
-          <button class="btn-add-prompt" @click="openDataSourceEditor()" title="Décrire une source de données">
-            <svg viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-            </svg>
-            Décrire données
-          </button>
           <label class="btn-add-file">
             <input type="file" multiple @change="handleFileSelect" accept=".xlsx,.xls,.csv,.json,.txt,.eml" hidden />
             <svg viewBox="0 0 20 20" fill="currentColor">
@@ -636,6 +630,9 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
             </svg>
             Fichier
           </label>
+          <button class="btn-add-prompt" @click="openDataSourceEditor()" title="Décrire une source de données">
+            ✨ Prompt
+          </button>
         </div>
       </div>
       
@@ -1022,6 +1019,8 @@ section {
 
 .btn-add-prompt {
   cursor: pointer;
+  font-size: 0.6875rem;
+  padding: 0.25rem 0.5rem;
 }
 
 .btn-action {

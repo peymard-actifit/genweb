@@ -152,24 +152,24 @@ async function togglePublishable(event) {
           <button class="section-header" @click="toggleSection('site')">
             <span class="section-icon">🏠</span>
             <span class="section-title">{{ sectionTitle }}</span>
+            <!-- Boutons d'action pour la vue (sauf Commun) - à gauche de la flèche -->
+            <div v-if="canModifyView" class="view-actions-inline">
+              <button class="view-action-btn duplicate" @click.stop="duplicateView" title="Dupliquer la vue">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                  <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
+                </svg>
+              </button>
+              <button class="view-action-btn delete" @click.stop="showDeleteConfirm = true" title="Supprimer la vue">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
             <svg class="chevron" :class="{ expanded: isSectionExpanded('site') }" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
             </svg>
           </button>
-          <!-- Boutons d'action pour la vue (sauf Commun) -->
-          <div v-if="canModifyView" class="view-actions">
-            <button class="view-action-btn duplicate" @click="duplicateView" title="Dupliquer la vue">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
-                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
-              </svg>
-            </button>
-            <button class="view-action-btn delete" @click="showDeleteConfirm = true" title="Supprimer la vue">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-              </svg>
-            </button>
-          </div>
         </div>
         
         <!-- Popup de confirmation de suppression -->
@@ -465,14 +465,13 @@ async function togglePublishable(event) {
   text-overflow: ellipsis;
 }
 
-/* Actions sur la vue */
-.view-actions {
+/* Actions sur la vue - inline à gauche de la flèche */
+.view-actions-inline {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0 0.5rem;
-  background: var(--bg-tertiary);
-  border-left: 1px solid var(--border-color);
+  gap: 0.125rem;
+  margin-left: auto;
+  margin-right: 0.25rem;
 }
 
 .view-action-btn {
