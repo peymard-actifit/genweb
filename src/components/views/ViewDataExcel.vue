@@ -52,6 +52,9 @@ function setCellData(row, col, data) {
   spreadsheet.cells[key] = { ...getCellData(row, col), ...data }
 }
 
+// Compteur pour les références de données
+let dataRefCounter = 1
+
 // Gestion des sources de données
 function handleDragOver(e) {
   e.preventDefault()
@@ -80,12 +83,27 @@ async function handleFileSelect(e) {
   e.target.value = ''
 }
 
+// Génère une référence unique lisible (D1, D2, D3...)
+function generateDataRef() {
+  return `D${dataRefCounter++}`
+}
+
 async function addDataSource(file) {
+  const fileType = getFileType(file)
+  
+  // Cas spécial pour les emails : on parse et on crée plusieurs sources
+  if (fileType === 'mail') {
+    await parseEmailFile(file)
+    return
+  }
+  
   const source = {
     id: Date.now() + Math.random(),
+    ref: generateDataRef(),
     name: file.name,
-    type: getFileType(file),
+    type: fileType,
     size: formatFileSize(file.size),
+    category: 'file', // 'file', 'email-body', 'email-attachment'
     file: file,
     data: null,
     status: 'loading'
@@ -102,6 +120,190 @@ async function addDataSource(file) {
     source.status = 'error'
     console.error('Erreur lecture fichier:', err)
   }
+}
+
+// Parse un fichier email (.eml) et extrait les composants
+async function parseEmailFile(file) {
+  try {
+    const content = await readFileContent(file)
+    const emailData = parseEmlContent(content)
+    
+    // Créer une source pour le corps de l'email
+    const emailSource = {
+      id: Date.now() + Math.random(),
+      ref: generateDataRef(),
+      name: `📧 ${emailData.subject || file.name}`,
+      type: 'email',
+      size: formatFileSize(file.size),
+      category: 'email-body',
+      data: formatEmailForAI(emailData),
+      status: 'ready',
+      emailMeta: {
+        from: emailData.from,
+        to: emailData.to,
+        subject: emailData.subject,
+        date: emailData.date
+      }
+    }
+    dataSources.value.push(emailSource)
+    
+    // Créer une source pour chaque pièce jointe
+    if (emailData.attachments && emailData.attachments.length > 0) {
+      for (const attachment of emailData.attachments) {
+        const attachmentSource = {
+          id: Date.now() + Math.random(),
+          ref: generateDataRef(),
+          name: `📎 ${attachment.filename}`,
+          type: getFileTypeFromName(attachment.filename),
+          size: attachment.size || 'N/A',
+          category: 'email-attachment',
+          parentEmail: emailSource.ref,
+          data: attachment.content || `[Pièce jointe: ${attachment.filename}]`,
+          status: 'ready'
+        }
+        dataSources.value.push(attachmentSource)
+      }
+    }
+  } catch (err) {
+    // Fallback : créer une source simple si le parsing échoue
+    const source = {
+      id: Date.now() + Math.random(),
+      ref: generateDataRef(),
+      name: file.name,
+      type: 'mail',
+      size: formatFileSize(file.size),
+      category: 'file',
+      data: await readFileContent(file),
+      status: 'ready'
+    }
+    dataSources.value.push(source)
+  }
+}
+
+// Parse le contenu d'un fichier .eml
+function parseEmlContent(emlContent) {
+  const result = {
+    from: '',
+    to: '',
+    subject: '',
+    date: '',
+    body: '',
+    attachments: []
+  }
+  
+  // Séparer les headers du body
+  const headerBodySplit = emlContent.indexOf('\r\n\r\n') !== -1 
+    ? emlContent.indexOf('\r\n\r\n') 
+    : emlContent.indexOf('\n\n')
+  
+  const headers = emlContent.substring(0, headerBodySplit)
+  const body = emlContent.substring(headerBodySplit + 4)
+  
+  // Extraire les headers
+  const fromMatch = headers.match(/^From:\s*(.+)$/mi)
+  const toMatch = headers.match(/^To:\s*(.+)$/mi)
+  const subjectMatch = headers.match(/^Subject:\s*(.+)$/mi)
+  const dateMatch = headers.match(/^Date:\s*(.+)$/mi)
+  
+  result.from = fromMatch ? decodeEmailHeader(fromMatch[1].trim()) : ''
+  result.to = toMatch ? decodeEmailHeader(toMatch[1].trim()) : ''
+  result.subject = subjectMatch ? decodeEmailHeader(subjectMatch[1].trim()) : ''
+  result.date = dateMatch ? dateMatch[1].trim() : ''
+  
+  // Vérifier si c'est un email multipart
+  const contentTypeMatch = headers.match(/^Content-Type:\s*(.+)$/mi)
+  if (contentTypeMatch && contentTypeMatch[1].includes('multipart')) {
+    // Extraire le boundary
+    const boundaryMatch = contentTypeMatch[1].match(/boundary="?([^";\s]+)"?/i)
+    if (boundaryMatch) {
+      const boundary = boundaryMatch[1]
+      const parts = body.split('--' + boundary)
+      
+      for (const part of parts) {
+        if (part.trim() === '' || part.trim() === '--') continue
+        
+        const partHeaderEnd = part.indexOf('\r\n\r\n') !== -1 
+          ? part.indexOf('\r\n\r\n') 
+          : part.indexOf('\n\n')
+        
+        if (partHeaderEnd === -1) continue
+        
+        const partHeaders = part.substring(0, partHeaderEnd)
+        const partContent = part.substring(partHeaderEnd + 4).trim()
+        
+        // Vérifier si c'est une pièce jointe
+        const dispositionMatch = partHeaders.match(/Content-Disposition:\s*attachment;\s*filename="?([^"]+)"?/i)
+        const filenameMatch = partHeaders.match(/name="?([^"]+)"?/i)
+        
+        if (dispositionMatch || filenameMatch) {
+          result.attachments.push({
+            filename: dispositionMatch ? dispositionMatch[1] : filenameMatch[1],
+            content: partContent.substring(0, 500) + (partContent.length > 500 ? '...' : ''),
+            size: formatFileSize(partContent.length)
+          })
+        } else if (partHeaders.toLowerCase().includes('text/plain')) {
+          result.body = partContent
+        } else if (partHeaders.toLowerCase().includes('text/html') && !result.body) {
+          // Extraire le texte du HTML basiquement
+          result.body = partContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        }
+      }
+    }
+  } else {
+    // Email simple, pas multipart
+    result.body = body.trim()
+  }
+  
+  return result
+}
+
+// Décode les headers d'email encodés (basique)
+function decodeEmailHeader(header) {
+  // Gère les encodages =?UTF-8?B?...?= et =?UTF-8?Q?...?=
+  return header.replace(/=\?([^?]+)\?([BQ])\?([^?]+)\?=/gi, (match, charset, encoding, text) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        return atob(text)
+      } else if (encoding.toUpperCase() === 'Q') {
+        return text.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/gi, (m, hex) => 
+          String.fromCharCode(parseInt(hex, 16))
+        )
+      }
+    } catch {
+      return text
+    }
+    return text
+  })
+}
+
+// Formate les données email pour l'IA
+function formatEmailForAI(emailData) {
+  let formatted = `SUJET: ${emailData.subject || '(sans sujet)'}\n`
+  formatted += `DE: ${emailData.from || '(inconnu)'}\n`
+  formatted += `À: ${emailData.to || '(inconnu)'}\n`
+  formatted += `DATE: ${emailData.date || '(inconnue)'}\n`
+  formatted += `\n--- CONTENU ---\n${emailData.body || '(vide)'}`
+  
+  if (emailData.attachments && emailData.attachments.length > 0) {
+    formatted += `\n\n--- PIÈCES JOINTES (${emailData.attachments.length}) ---\n`
+    emailData.attachments.forEach((att, i) => {
+      formatted += `${i + 1}. ${att.filename}\n`
+    })
+  }
+  
+  return formatted
+}
+
+// Obtient le type de fichier à partir du nom
+function getFileTypeFromName(filename) {
+  const ext = filename.split('.').pop().toLowerCase()
+  if (['xlsx', 'xls'].includes(ext)) return 'excel'
+  if (ext === 'csv') return 'csv'
+  if (ext === 'json') return 'json'
+  if (['txt', 'text'].includes(ext)) return 'text'
+  if (['pdf'].includes(ext)) return 'pdf'
+  if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'image'
+  return 'other'
 }
 
 function getFileType(file) {
@@ -135,17 +337,39 @@ async function readFileContent(file) {
 }
 
 function removeDataSource(id) {
-  dataSources.value = dataSources.value.filter(s => s.id !== id)
+  // Si c'est un email, supprimer aussi ses pièces jointes
+  const source = dataSources.value.find(s => s.id === id)
+  if (source && source.category === 'email-body') {
+    dataSources.value = dataSources.value.filter(s => 
+      s.id !== id && s.parentEmail !== source.ref
+    )
+  } else {
+    dataSources.value = dataSources.value.filter(s => s.id !== id)
+  }
 }
 
-function getSourceIcon(type) {
+function getSourceIcon(type, category) {
+  if (category === 'email-body') return '📧'
+  if (category === 'email-attachment') return '📎'
+  
   switch (type) {
     case 'excel': return '📊'
     case 'csv': return '📋'
+    case 'email': return '📧'
     case 'mail': return '📧'
     case 'json': return '{ }'
     case 'text': return '📝'
+    case 'pdf': return '📄'
+    case 'image': return '🖼️'
     default: return '📁'
+  }
+}
+
+function getCategoryLabel(category) {
+  switch (category) {
+    case 'email-body': return 'Email'
+    case 'email-attachment': return 'Pièce jointe'
+    default: return 'Fichier'
   }
 }
 
@@ -207,6 +431,11 @@ async function executeCell(row, col) {
 async function executeSingleCell() {
   if (selectedCell.value) {
     await executeCell(selectedCell.value.row, selectedCell.value.col)
+    // Fermer le modal si le calcul a réussi (pas d'erreur)
+    const cell = getCellData(selectedCell.value.row, selectedCell.value.col)
+    if (cell.value && !cell.error) {
+      showPromptEditor.value = false
+    }
   }
 }
 
@@ -318,12 +547,21 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
             v-for="source in dataSources" 
             :key="source.id" 
             class="source-item"
-            :class="{ 'loading': source.status === 'loading', 'error': source.status === 'error' }"
+            :class="{ 
+              'loading': source.status === 'loading', 
+              'error': source.status === 'error',
+              'email-body': source.category === 'email-body',
+              'email-attachment': source.category === 'email-attachment'
+            }"
           >
-            <span class="source-icon">{{ getSourceIcon(source.type) }}</span>
+            <span class="source-ref" :title="'Utilisez ' + source.ref + ' dans vos prompts'">{{ source.ref }}</span>
+            <span class="source-icon">{{ getSourceIcon(source.type, source.category) }}</span>
             <div class="source-info">
               <span class="source-name">{{ source.name }}</span>
-              <span class="source-meta">{{ source.type.toUpperCase() }} • {{ source.size }}</span>
+              <span class="source-meta">
+                {{ getCategoryLabel(source.category) }} • {{ source.size }}
+                <span v-if="source.parentEmail" class="parent-ref">↳ {{ source.parentEmail }}</span>
+              </span>
             </div>
             <div class="source-status">
               <span v-if="source.status === 'loading'" class="status-loading">⏳</span>
@@ -467,10 +705,16 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
               rows="6"
             ></textarea>
             <div class="data-refs">
-              <span class="refs-label">Sources disponibles:</span>
+              <span class="refs-label">Sources disponibles (utilisez la référence dans votre prompt):</span>
               <div class="refs-list">
-                <span v-for="source in dataSources" :key="source.id" class="ref-tag">
-                  {{ source.name }}
+                <span 
+                  v-for="source in dataSources" 
+                  :key="source.id" 
+                  class="ref-tag"
+                  :class="{ 'email-tag': source.category === 'email-body', 'attachment-tag': source.category === 'email-attachment' }"
+                  :title="source.name"
+                >
+                  <strong>{{ source.ref }}</strong> - {{ source.name.substring(0, 25) }}{{ source.name.length > 25 ? '...' : '' }}
                 </span>
                 <span v-if="dataSources.length === 0" class="no-refs">Aucune source importée</span>
               </div>
@@ -674,7 +918,7 @@ section {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
-  max-width: 250px;
+  max-width: 300px;
 }
 
 .source-item.loading {
@@ -684,6 +928,25 @@ section {
 .source-item.error {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
+}
+
+.source-item.email-body {
+  border-left: 3px solid #3b82f6;
+}
+
+.source-item.email-attachment {
+  border-left: 3px solid #f59e0b;
+  margin-left: 1rem;
+}
+
+.source-ref {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: white;
+  background: var(--accent);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
 }
 
 .source-icon {
@@ -1040,14 +1303,39 @@ section {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 0.25rem;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.ref-tag strong {
+  color: var(--accent);
+  margin-right: 0.25rem;
+}
+
+.ref-tag.email-tag {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.ref-tag.attachment-tag {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .no-refs {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-style: italic;
+}
+
+.parent-ref {
+  color: var(--accent);
+  font-size: 0.625rem;
+  margin-left: 0.25rem;
 }
 
 .prompt-modal-footer {

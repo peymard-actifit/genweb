@@ -126,17 +126,19 @@ function prepareDataContext(dataSources) {
   return dataSources
     .filter(source => source.status === 'ready' && source.data)
     .map(source => {
-      const header = `\n--- ${source.name} (${source.type.toUpperCase()}) ---\n`
+      // Utiliser la référence si disponible, sinon le nom
+      const ref = source.ref || source.name
+      const category = source.category ? `[${source.category}]` : ''
+      const header = `\n=== ${ref}: ${source.name} ${category} ===\n`
       
       // Formater les données selon le type
       let content = ''
       
       if (typeof source.data === 'string') {
-        // CSV, JSON, texte
+        // CSV, JSON, texte, email
         content = truncateData(source.data, 3000)
       } else if (source.data instanceof ArrayBuffer) {
         // Fichiers binaires (Excel) - on ne peut pas les lire directement côté client
-        // Dans une vraie implémentation, on utiliserait une lib comme xlsx
         content = '[Fichier binaire - contenu non extrait. Utilisez un fichier CSV pour les données tabulaires.]'
       } else {
         content = JSON.stringify(source.data, null, 2)
