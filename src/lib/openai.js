@@ -14,15 +14,20 @@ export async function executePrompt(prompt, dataSources = []) {
     throw new Error('Clé API OpenAI non configurée. Ajoutez VITE_OPENAI_API_KEY dans vos variables d\'environnement.')
   }
 
-  // Préparer le contexte des données
+  // Préparer le contexte système et les données
+  const systemContext = getSystemContext()
   const dataContext = prepareDataContext(dataSources)
   
   // Construire le message système
   const systemMessage = `Tu es un assistant spécialisé dans l'analyse de données et les calculs.
 Tu reçois des données provenant de différentes sources (fichiers Excel, CSV, JSON, emails, texte).
+Tu as également accès aux informations système actuelles.
 Tu dois répondre de manière concise et précise aux demandes de calcul ou d'extraction.
 Retourne uniquement le résultat demandé, sans explication supplémentaire, sauf si explicitement demandé.
 Si tu ne peux pas effectuer le calcul avec les données fournies, indique-le clairement.
+
+INFORMATIONS SYSTÈME:
+${systemContext}
 
 DONNÉES DISPONIBLES:
 ${dataContext}`
@@ -56,6 +61,56 @@ ${dataContext}`
     console.error('Erreur OpenAI:', err)
     throw err
   }
+}
+
+/**
+ * Récupère le contexte système (date, heure, infos navigateur)
+ * @returns {string} - Les informations système formatées
+ */
+function getSystemContext() {
+  const now = new Date()
+  
+  // Formatage de la date en français
+  const dateOptions = { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }
+  const timeOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }
+  
+  const dateStr = now.toLocaleDateString('fr-FR', dateOptions)
+  const timeStr = now.toLocaleTimeString('fr-FR', timeOptions)
+  const isoDate = now.toISOString().split('T')[0] // Format YYYY-MM-DD
+  
+  // Informations sur le fuseau horaire
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  
+  // Informations navigateur (si disponibles)
+  const browserInfo = typeof navigator !== 'undefined' ? {
+    langue: navigator.language || 'inconnu',
+    plateforme: navigator.platform || 'inconnu',
+    enLigne: navigator.onLine ? 'Oui' : 'Non'
+  } : {}
+  
+  let context = `- Date du jour: ${dateStr}
+- Date ISO: ${isoDate}
+- Heure actuelle: ${timeStr}
+- Fuseau horaire: ${timezone}`
+  
+  if (browserInfo.langue) {
+    context += `
+- Langue: ${browserInfo.langue}
+- Plateforme: ${browserInfo.plateforme}
+- Connexion internet: ${browserInfo.enLigne}`
+  }
+  
+  return context
 }
 
 /**
