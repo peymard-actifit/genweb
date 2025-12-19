@@ -21,6 +21,14 @@ const globalError = ref('')
 const dataSources = ref([])
 const isDraggingOver = ref(false)
 
+// Modal pour créer une source via prompt
+const showDataSourceEditor = ref(false)
+const editingDataSource = ref(null)
+const dataSourcePrompt = ref('')
+const dataSourceName = ref('')
+const isExecutingDataPrompt = ref(false)
+const hoveredSourceId = ref(null)
+
 // Zone tableau Excel (partie basse) - 8 colonnes x 10 lignes par défaut
 const spreadsheet = reactive({
   rows: 10,
@@ -351,6 +359,7 @@ function removeDataSource(id) {
 function getSourceIcon(type, category) {
   if (category === 'email-body') return '📧'
   if (category === 'email-attachment') return '📎'
+  if (category === 'prompt') return '✨'
   
   switch (type) {
     case 'excel': return '📊'
@@ -361,6 +370,7 @@ function getSourceIcon(type, category) {
     case 'text': return '📝'
     case 'pdf': return '📄'
     case 'image': return '🖼️'
+    case 'prompt': return '✨'
     default: return '📁'
   }
 }
@@ -369,7 +379,105 @@ function getCategoryLabel(category) {
   switch (category) {
     case 'email-body': return 'Email'
     case 'email-attachment': return 'Pièce jointe'
+    case 'prompt': return 'Prompt'
     default: return 'Fichier'
+  }
+}
+
+// Ouvrir le modal pour créer une nouvelle source via prompt
+function openDataSourceEditor(source = null) {
+  if (source) {
+    // Édition d'une source existante
+    editingDataSource.value = source
+    dataSourcePrompt.value = source.fetchPrompt || ''
+    dataSourceName.value = source.name || ''
+  } else {
+    // Nouvelle source
+    editingDataSource.value = null
+    dataSourcePrompt.value = ''
+    dataSourceName.value = ''
+  }
+  showDataSourceEditor.value = true
+}
+
+// Fermer le modal
+function closeDataSourceEditor() {
+  showDataSourceEditor.value = false
+  editingDataSource.value = null
+  dataSourcePrompt.value = ''
+  dataSourceName.value = ''
+}
+
+// Exécuter le prompt pour récupérer les données
+async function executeDataSourcePrompt() {
+  if (!dataSourcePrompt.value.trim()) return
+  
+  isExecutingDataPrompt.value = true
+  
+  try {
+    // Appeler l'IA pour interpréter le prompt et générer les données
+    const prompt = `Tu dois analyser cette demande de récupération de données et fournir un résultat structuré.
+
+DEMANDE: ${dataSourcePrompt.value}
+
+INSTRUCTIONS:
+- Si c'est une demande d'emails, génère un exemple de structure d'email avec sujet, expéditeur, date et contenu
+- Si c'est une demande de fichier, décris le contenu attendu
+- Si c'est une demande de données spécifiques (météo, date, etc.), fournis les données directement
+- Réponds en format texte structuré, facilement exploitable
+
+Fournis les données ou une description précise de ce qui serait récupéré.`
+
+    let result
+    if (openaiConfigured.value) {
+      result = await executePrompt(prompt, [])
+    } else {
+      // Mode simulation si pas d'API
+      result = `[Simulation] Données demandées:\n${dataSourcePrompt.value}\n\n(Configurez VITE_OPENAI_API_KEY pour une récupération réelle)`
+    }
+    
+    const sourceName = dataSourceName.value.trim() || `Source ${dataRefCounter}`
+    
+    if (editingDataSource.value) {
+      // Mise à jour d'une source existante
+      const source = dataSources.value.find(s => s.id === editingDataSource.value.id)
+      if (source) {
+        source.name = sourceName
+        source.fetchPrompt = dataSourcePrompt.value
+        source.data = result
+        source.status = 'ready'
+        source.updatedAt = new Date().toISOString()
+      }
+    } else {
+      // Création d'une nouvelle source
+      const newSource = {
+        id: Date.now() + Math.random(),
+        ref: generateDataRef(),
+        name: sourceName,
+        type: 'prompt',
+        size: formatFileSize(result.length),
+        category: 'prompt',
+        fetchPrompt: dataSourcePrompt.value,
+        data: result,
+        status: 'ready',
+        createdAt: new Date().toISOString()
+      }
+      dataSources.value.push(newSource)
+    }
+    
+    closeDataSourceEditor()
+  } catch (err) {
+    console.error('Erreur récupération données:', err)
+    globalError.value = `Erreur: ${err.message}`
+  } finally {
+    isExecutingDataPrompt.value = false
+  }
+}
+
+// Cliquer sur une source pour l'éditer
+function editDataSource(source) {
+  if (source.category === 'prompt') {
+    openDataSourceEditor(source)
   }
 }
 
@@ -515,12 +623,18 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
           <span class="badge" v-if="sourceCount > 0">{{ readySources }}/{{ sourceCount }}</span>
         </div>
         <div class="section-actions">
+          <button class="btn-add-prompt" @click="openDataSourceEditor()" title="Décrire une source de données">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+            </svg>
+            Décrire données
+          </button>
           <label class="btn-add-file">
             <input type="file" multiple @change="handleFileSelect" accept=".xlsx,.xls,.csv,.json,.txt,.eml" hidden />
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
             </svg>
-            Ajouter fichier
+            Fichier
           </label>
         </div>
       </div>
@@ -533,12 +647,12 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
         @drop="handleDrop"
       >
         <!-- Zone vide -->
-        <div v-if="dataSources.length === 0" class="drop-placeholder">
+        <div v-if="dataSources.length === 0" class="drop-placeholder" @click="openDataSourceEditor()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
           </svg>
-          <p>Glissez vos fichiers ici</p>
-          <span>Excel, CSV, JSON, Emails ou Texte</span>
+          <p>Cliquez ici ou glissez vos fichiers</p>
+          <span>Décrivez vos données ou importez Excel, CSV, JSON, Emails, Texte</span>
         </div>
         
         <!-- Liste des sources -->
@@ -551,8 +665,13 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
               'loading': source.status === 'loading', 
               'error': source.status === 'error',
               'email-body': source.category === 'email-body',
-              'email-attachment': source.category === 'email-attachment'
+              'email-attachment': source.category === 'email-attachment',
+              'prompt-source': source.category === 'prompt',
+              'clickable': source.category === 'prompt'
             }"
+            @click="source.category === 'prompt' ? openDataSourceEditor(source) : null"
+            @mouseenter="hoveredSourceId = source.id"
+            @mouseleave="hoveredSourceId = null"
           >
             <span class="source-ref" :title="'Utilisez ' + source.ref + ' dans vos prompts'">{{ source.ref }}</span>
             <span class="source-icon">{{ getSourceIcon(source.type, source.category) }}</span>
@@ -568,11 +687,29 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
               <span v-else-if="source.status === 'ready'" class="status-ready">✓</span>
               <span v-else class="status-error">✗</span>
             </div>
-            <button class="btn-remove" @click="removeDataSource(source.id)" title="Supprimer">
+            <button class="btn-remove" @click.stop="removeDataSource(source.id)" title="Supprimer">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
             </button>
+            
+            <!-- Tooltip avec le prompt de récupération au survol -->
+            <div 
+              v-if="hoveredSourceId === source.id && source.fetchPrompt"
+              class="source-tooltip"
+            >
+              <div class="source-tooltip-header">
+                <span class="tooltip-ref">{{ source.ref }}</span>
+                <span class="tooltip-type">Prompt de récupération</span>
+              </div>
+              <div class="source-tooltip-content">{{ source.fetchPrompt }}</div>
+            </div>
+          </div>
+          
+          <!-- Bouton pour ajouter une nouvelle source via prompt -->
+          <div class="source-item add-source-item" @click="openDataSourceEditor()">
+            <span class="add-icon">+</span>
+            <span class="add-text">Nouvelle source...</span>
           </div>
         </div>
       </div>
@@ -683,6 +820,63 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
         </table>
       </div>
     </section>
+
+    <!-- Modal de création/édition de source de données -->
+    <Transition name="modal">
+      <div v-if="showDataSourceEditor" class="prompt-modal-overlay" @click.self="closeDataSourceEditor">
+        <div class="prompt-modal data-source-modal">
+          <div class="prompt-modal-header">
+            <h4>{{ editingDataSource ? 'Modifier la source' : 'Nouvelle source de données' }}</h4>
+            <button class="btn-close" @click="closeDataSourceEditor">×</button>
+          </div>
+          <div class="prompt-modal-body">
+            <p class="prompt-help">
+              Décrivez comment récupérer vos données. L'IA interprétera votre demande pour générer les données.
+            </p>
+            
+            <div class="form-group">
+              <label>Nom de la source (optionnel)</label>
+              <input 
+                type="text" 
+                v-model="dataSourceName"
+                class="form-input"
+                placeholder="Ex: Emails janvier, Données météo, Liste clients..."
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>Description de la récupération</label>
+              <textarea 
+                class="prompt-textarea"
+                v-model="dataSourcePrompt"
+                placeholder="Décrivez les données que vous souhaitez :&#10;&#10;Exemples :&#10;• Récupère les emails de la boîte Gmail de janvier 2024&#10;• Liste des clients avec nom, email et téléphone&#10;• Données météo de Paris des 7 derniers jours&#10;• Contenu du fichier Excel 'ventes.xlsx'"
+                rows="6"
+              ></textarea>
+            </div>
+            
+            <div class="help-examples">
+              <span class="help-title">💡 Exemples de prompts :</span>
+              <div class="example-chips">
+                <span class="example-chip" @click="dataSourcePrompt = 'Récupère les emails non lus de cette semaine avec leur sujet et expéditeur'">📧 Emails</span>
+                <span class="example-chip" @click="dataSourcePrompt = 'Génère une liste de 10 clients fictifs avec nom, email, téléphone et ville'">👥 Clients</span>
+                <span class="example-chip" @click="dataSourcePrompt = 'Données météo actuelles : température, humidité, conditions'">🌤️ Météo</span>
+                <span class="example-chip" @click="dataSourcePrompt = 'Tableau de ventes mensuelles : produit, quantité, prix unitaire, total'">📊 Ventes</span>
+              </div>
+            </div>
+          </div>
+          <div class="prompt-modal-footer">
+            <button class="btn-cancel" @click="closeDataSourceEditor">Annuler</button>
+            <button 
+              class="btn-execute-cell" 
+              @click="executeDataSourcePrompt"
+              :disabled="!dataSourcePrompt.trim() || isExecutingDataPrompt"
+            >
+              {{ isExecutingDataPrompt ? '⏳ Récupération...' : '✨ Récupérer les données' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Modal d'édition du prompt -->
     <Transition name="modal">
@@ -815,15 +1009,19 @@ section {
   transition: all 0.15s;
 }
 
-.btn-add-file {
+.btn-add-file, .btn-add-prompt {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
 }
 
-.btn-add-file:hover {
+.btn-add-file:hover, .btn-add-prompt:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.btn-add-prompt {
+  cursor: pointer;
 }
 
 .btn-action {
@@ -884,6 +1082,14 @@ section {
   border: 2px dashed var(--border-color);
   border-radius: 0.5rem;
   color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.drop-placeholder:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.05);
+  color: var(--accent);
 }
 
 .drop-placeholder svg {
@@ -919,6 +1125,7 @@ section {
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   max-width: 300px;
+  position: relative;
 }
 
 .source-item.loading {
@@ -937,6 +1144,112 @@ section {
 .source-item.email-attachment {
   border-left: 3px solid #f59e0b;
   margin-left: 1rem;
+}
+
+.source-item.prompt-source {
+  border-left: 3px solid #8b5cf6;
+}
+
+.source-item.clickable {
+  cursor: pointer;
+}
+
+.source-item.clickable:hover {
+  background: var(--bg-hover);
+}
+
+/* Bouton ajouter une source */
+.add-source-item {
+  border: 2px dashed var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  min-width: 150px;
+  justify-content: center;
+}
+
+.add-source-item:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.add-icon {
+  font-size: 1.25rem;
+  font-weight: 300;
+  color: var(--text-muted);
+}
+
+.add-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.add-source-item:hover .add-icon,
+.add-source-item:hover .add-text {
+  color: var(--accent);
+}
+
+/* Tooltip pour source */
+.source-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 320px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.source-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border-color);
+}
+
+.source-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.tooltip-ref {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.15);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.tooltip-type {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.source-tooltip-content {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 100px;
+  overflow-y: auto;
 }
 
 .source-ref {
@@ -1279,6 +1592,73 @@ section {
 .prompt-textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Modal source de données */
+.data-source-modal .form-group {
+  margin-bottom: 1rem;
+}
+
+.data-source-modal .form-group label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.375rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.help-examples {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 0.5rem;
+}
+
+.help-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8b5cf6;
+}
+
+.example-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.example-chip {
+  padding: 0.25rem 0.625rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.example-chip:hover {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
 }
 
 .data-refs {
