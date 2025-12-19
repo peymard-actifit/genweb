@@ -21,10 +21,10 @@ const globalError = ref('')
 const dataSources = ref([])
 const isDraggingOver = ref(false)
 
-// Zone tableau Excel (partie basse)
+// Zone tableau Excel (partie basse) - 8 colonnes x 10 lignes par défaut
 const spreadsheet = reactive({
-  rows: 5,
-  cols: 5,
+  rows: 10,
+  cols: 8,
   cells: {}
 })
 
@@ -32,6 +32,9 @@ const spreadsheet = reactive({
 const selectedCell = ref(null)
 const showPromptEditor = ref(false)
 const isExecutingAll = ref(false)
+
+// Cellule survolée pour afficher le tooltip
+const hoveredCell = ref(null)
 
 // Initialiser les cellules
 function getCellKey(row, col) {
@@ -404,20 +407,38 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
                 class="cell"
                 :class="{ 
                   'has-prompt': getCellData(row - 1, col - 1).prompt,
+                  'has-value': getCellData(row - 1, col - 1).value,
                   'calculating': getCellData(row - 1, col - 1).isCalculating,
                   'has-error': getCellData(row - 1, col - 1).error,
-                  'selected': selectedCell?.row === row - 1 && selectedCell?.col === col - 1
+                  'selected': selectedCell?.row === row - 1 && selectedCell?.col === col - 1,
+                  'hovered': hoveredCell?.row === row - 1 && hoveredCell?.col === col - 1
                 }"
                 @click="selectCell(row - 1, col - 1)"
-                :title="getCellData(row - 1, col - 1).error || ''"
+                @mouseenter="hoveredCell = { row: row - 1, col: col - 1 }"
+                @mouseleave="hoveredCell = null"
               >
-                <span v-if="getCellData(row - 1, col - 1).isCalculating" class="cell-loading">⏳</span>
-                <span v-else-if="getCellData(row - 1, col - 1).value" class="cell-value" :class="{ 'cell-error': getCellData(row - 1, col - 1).error }">
-                  {{ getCellData(row - 1, col - 1).value }}
-                </span>
-                <span v-else-if="getCellData(row - 1, col - 1).prompt" class="cell-prompt-indicator">
-                  ƒ
-                </span>
+                <!-- Contenu de la cellule -->
+                <div class="cell-content">
+                  <span v-if="getCellData(row - 1, col - 1).isCalculating" class="cell-loading">⏳</span>
+                  <span v-else-if="getCellData(row - 1, col - 1).value" class="cell-value" :class="{ 'cell-error': getCellData(row - 1, col - 1).error }">
+                    {{ getCellData(row - 1, col - 1).value }}
+                  </span>
+                  <span v-else-if="getCellData(row - 1, col - 1).prompt" class="cell-prompt-indicator">
+                    ƒ
+                  </span>
+                </div>
+                
+                <!-- Tooltip avec le prompt au survol -->
+                <div 
+                  v-if="hoveredCell?.row === row - 1 && hoveredCell?.col === col - 1 && getCellData(row - 1, col - 1).prompt"
+                  class="cell-tooltip"
+                >
+                  <div class="tooltip-header">
+                    <span class="tooltip-cell-ref">{{ getCellKey(row - 1, col - 1) }}</span>
+                    <span class="tooltip-label">Prompt</span>
+                  </div>
+                  <div class="tooltip-content">{{ getCellData(row - 1, col - 1).prompt }}</div>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -782,39 +803,69 @@ section {
 
 .cell {
   height: 32px;
-  min-width: 80px;
+  min-width: 90px;
+  max-width: 150px;
   background: var(--bg-secondary);
   cursor: pointer;
   transition: all 0.1s;
   position: relative;
+  vertical-align: middle;
 }
 
 .cell:hover {
   background: var(--bg-hover);
 }
 
+.cell.hovered {
+  z-index: 10;
+}
+
 .cell.selected {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+  z-index: 11;
 }
 
-.cell.has-prompt {
-  background: rgba(99, 102, 241, 0.1);
+.cell.has-prompt:not(.has-value) {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.cell.has-value {
+  background: rgba(16, 185, 129, 0.08);
 }
 
 .cell.calculating {
   background: rgba(251, 191, 36, 0.2);
 }
 
+.cell.has-error {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cell-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cell-value {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cell-prompt-indicator {
   color: var(--accent);
-  font-weight: 600;
-  font-style: italic;
+  font-weight: 700;
+  font-size: 0.875rem;
+  opacity: 0.7;
 }
 
 .cell-loading {
@@ -824,6 +875,68 @@ section {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+/* Tooltip pour afficher le prompt au survol */
+.cell-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 300px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.cell-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border-color);
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.tooltip-cell-ref {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.15);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.tooltip-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tooltip-content {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Modal prompt */
