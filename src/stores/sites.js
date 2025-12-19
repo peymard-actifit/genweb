@@ -228,6 +228,7 @@ export const useSitesStore = defineStore('sites', () => {
           type: viewType,
           order_index: existingViews.length,
           is_deletable: true,
+          is_publishable: false,
           settings: {}
         })
         .select()

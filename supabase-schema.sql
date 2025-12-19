@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS site_views (
   type VARCHAR(50) NOT NULL DEFAULT 'custom',
   order_index INTEGER DEFAULT 0,
   is_deletable BOOLEAN DEFAULT TRUE,
+  is_publishable BOOLEAN DEFAULT FALSE,
   settings JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
