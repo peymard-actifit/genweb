@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import { executePrompt, isConfigured } from '@/lib/openai'
 
 const props = defineProps({
   site: {
@@ -11,6 +12,10 @@ const props = defineProps({
     default: null
   }
 })
+
+// État de l'API OpenAI
+const openaiConfigured = computed(() => isConfigured())
+const globalError = ref('')
 
 // Zone de données (partie haute)
 const dataSources = ref([])
@@ -26,6 +31,7 @@ const spreadsheet = reactive({
 // Cellule sélectionnée pour édition du prompt
 const selectedCell = ref(null)
 const showPromptEditor = ref(false)
+const isExecutingAll = ref(false)
 
 // Initialiser les cellules
 function getCellKey(row, col) {
@@ -161,31 +167,74 @@ function savePrompt(prompt) {
   showPromptEditor.value = false
 }
 
-// Exécution des prompts (simulation)
+// Exécution des prompts avec OpenAI
 async function executeCell(row, col) {
   const cell = getCellData(row, col)
   if (!cell.prompt) return
   
-  setCellData(row, col, { isCalculating: true })
+  if (!openaiConfigured.value) {
+    setCellData(row, col, { 
+      value: '⚠️ API non configurée',
+      error: 'Clé OpenAI manquante'
+    })
+    return
+  }
   
-  // Simulation - dans la vraie implémentation, on appellerait l'API OpenAI
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  setCellData(row, col, { isCalculating: true, error: null })
   
-  setCellData(row, col, { 
-    isCalculating: false, 
-    value: `[Résultat calculé]` 
-  })
+  try {
+    // Appel à l'API OpenAI avec les données sources
+    const result = await executePrompt(cell.prompt, dataSources.value)
+    
+    setCellData(row, col, { 
+      isCalculating: false, 
+      value: result,
+      error: null
+    })
+  } catch (err) {
+    console.error('Erreur calcul cellule:', err)
+    setCellData(row, col, { 
+      isCalculating: false, 
+      value: '❌ Erreur',
+      error: err.message
+    })
+  }
+}
+
+async function executeSingleCell() {
+  if (selectedCell.value) {
+    await executeCell(selectedCell.value.row, selectedCell.value.col)
+  }
 }
 
 async function executeAllCells() {
+  if (!openaiConfigured.value) {
+    globalError.value = 'Clé API OpenAI non configurée. Ajoutez VITE_OPENAI_API_KEY dans Vercel.'
+    return
+  }
+  
+  globalError.value = ''
+  isExecutingAll.value = true
+  
+  // Collecter toutes les cellules avec un prompt
+  const cellsToExecute = []
   for (let row = 0; row < spreadsheet.rows; row++) {
     for (let col = 0; col < spreadsheet.cols; col++) {
       const cell = getCellData(row, col)
-      if (cell.prompt) {
-        await executeCell(row, col)
+      if (cell.prompt && !cell.value) {
+        cellsToExecute.push({ row, col })
       }
     }
   }
+  
+  // Exécuter séquentiellement pour éviter les limites de rate
+  for (const { row, col } of cellsToExecute) {
+    await executeCell(row, col)
+    // Petit délai entre les appels pour respecter les limites
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
+  
+  isExecutingAll.value = false
 }
 
 // Export Excel
@@ -297,8 +346,11 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
     <section class="excel-section">
       <div class="section-header">
         <div class="section-title">
-          <span class="section-icon">📊</span>
+          <span class="section-icon">🧮</span>
           <h3>Tableau de calcul</h3>
+          <span v-if="!openaiConfigured" class="api-warning" title="Clé API OpenAI non configurée">
+            ⚠️ API
+          </span>
         </div>
         <div class="section-actions">
           <button class="btn-action" @click="addColumn" title="Ajouter colonne">
@@ -313,19 +365,24 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
             </svg>
             Ligne
           </button>
-          <button class="btn-execute" @click="executeAllCells">
+          <button class="btn-execute" @click="executeAllCells" :disabled="isExecutingAll">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
             </svg>
-            Calculer tout
+            {{ isExecutingAll ? 'Calcul...' : 'Calculer tout' }}
           </button>
           <button class="btn-export" @click="exportToExcel">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>
-            Exporter Excel
+            Exporter CSV
           </button>
         </div>
+      </div>
+      
+      <!-- Message d'erreur global -->
+      <div v-if="globalError" class="global-error">
+        {{ globalError }}
       </div>
       
       <div class="spreadsheet-container">
@@ -348,12 +405,14 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
                 :class="{ 
                   'has-prompt': getCellData(row - 1, col - 1).prompt,
                   'calculating': getCellData(row - 1, col - 1).isCalculating,
+                  'has-error': getCellData(row - 1, col - 1).error,
                   'selected': selectedCell?.row === row - 1 && selectedCell?.col === col - 1
                 }"
                 @click="selectCell(row - 1, col - 1)"
+                :title="getCellData(row - 1, col - 1).error || ''"
               >
                 <span v-if="getCellData(row - 1, col - 1).isCalculating" class="cell-loading">⏳</span>
-                <span v-else-if="getCellData(row - 1, col - 1).value" class="cell-value">
+                <span v-else-if="getCellData(row - 1, col - 1).value" class="cell-value" :class="{ 'cell-error': getCellData(row - 1, col - 1).error }">
                   {{ getCellData(row - 1, col - 1).value }}
                 </span>
                 <span v-else-if="getCellData(row - 1, col - 1).prompt" class="cell-prompt-indicator">
@@ -397,8 +456,14 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
             </div>
           </div>
           <div class="prompt-modal-footer">
-            <button class="btn-cancel" @click="showPromptEditor = false">Annuler</button>
-            <button class="btn-save" @click="showPromptEditor = false">Enregistrer</button>
+            <button class="btn-cancel" @click="showPromptEditor = false">Fermer</button>
+            <button 
+              class="btn-execute-cell" 
+              @click="executeSingleCell" 
+              :disabled="!getCellData(selectedCell?.row, selectedCell?.col)?.prompt || getCellData(selectedCell?.row, selectedCell?.col)?.isCalculating"
+            >
+              {{ getCellData(selectedCell?.row, selectedCell?.col)?.isCalculating ? '⏳ Calcul...' : '▶️ Exécuter' }}
+            </button>
           </div>
         </div>
       </div>
@@ -894,10 +959,44 @@ section {
   color: var(--text-secondary);
 }
 
-.btn-save {
+.btn-execute-cell {
   background: var(--accent);
   border: none;
   color: white;
+}
+
+.btn-execute-cell:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* API Warning */
+.api-warning {
+  padding: 0.125rem 0.375rem;
+  background: rgba(251, 191, 36, 0.2);
+  color: #f59e0b;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+}
+
+/* Erreur globale */
+.global-error {
+  padding: 0.5rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+  font-size: 0.8125rem;
+}
+
+/* Cellule avec erreur */
+.cell.has-error {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cell-error {
+  color: #dc2626;
+  font-size: 0.75rem;
 }
 
 /* Animations */

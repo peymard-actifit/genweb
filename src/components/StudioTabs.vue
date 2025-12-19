@@ -24,7 +24,7 @@ const showAddMenu = ref(false)
 const isAdding = ref(false)
 
 const viewTypes = [
-  { type: 'dataexcel', name: 'Data & Excel', icon: '📈', description: 'Import données + calculs IA' },
+  { type: 'calculs', name: 'Calculs', icon: '🧮', description: 'Import données + calculs IA' },
   { type: 'media', name: 'Médias', icon: '🖼️', description: 'Photos, vidéos, fichiers' },
   { type: 'gestion', name: 'Gestion', icon: '📊', description: 'Données et activités' },
   { type: 'custom', name: 'Personnalisée', icon: '✨', description: 'Vue libre' }
@@ -62,7 +62,7 @@ async function addView(viewType) {
         @click="emit('select', view.id)"
       >
         <span class="tab-icon" v-if="view.type === 'common'">⚙️</span>
-        <span class="tab-icon" v-else-if="view.type === 'dataexcel'">📈</span>
+        <span class="tab-icon" v-else-if="view.type === 'calculs'">🧮</span>
         <span class="tab-icon" v-else-if="view.type === 'media'">🖼️</span>
         <span class="tab-icon" v-else-if="view.type === 'gestion'">📊</span>
         <span class="tab-icon" v-else>✨</span>

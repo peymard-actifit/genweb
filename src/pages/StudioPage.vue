@@ -88,13 +88,13 @@ function goBack() {
     <!-- Zone de travail -->
     <div class="studio-workspace" :class="{ 'panel-open': showEditPanel }">
       <!-- Zone de prévisualisation -->
-      <main class="preview-area" :class="{ 'full-height': activeView?.type === 'dataexcel' }">
-        <div class="preview-container" :class="{ 'no-padding': activeView?.type === 'dataexcel' }">
+      <main class="preview-area" :class="{ 'full-height': activeView?.type === 'calculs' }">
+        <div class="preview-container" :class="{ 'no-padding': activeView?.type === 'calculs' }">
           <!-- Vue Commun -->
           <ViewCommon v-if="activeView?.type === 'common'" :site="site" :view="activeView" />
           
-          <!-- Vue Data Excel -->
-          <ViewDataExcel v-else-if="activeView?.type === 'dataexcel'" :site="site" :view="activeView" />
+          <!-- Vue Calculs -->
+          <ViewDataExcel v-else-if="activeView?.type === 'calculs'" :site="site" :view="activeView" />
           
           <!-- Vue Custom (média, gestion, custom) -->
           <ViewCustom v-else :site="site" :view="activeView" />
