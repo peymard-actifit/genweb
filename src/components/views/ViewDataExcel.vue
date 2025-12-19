@@ -44,6 +44,39 @@ const isExecutingAll = ref(false)
 // Cellule survolée pour afficher le tooltip
 const hoveredCell = ref(null)
 
+// Redimensionnement des sections
+const dataSectionHeight = ref(30) // Pourcentage de hauteur pour la section haute
+const isResizing = ref(false)
+const containerRef = ref(null)
+
+function startResize(e) {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  e.preventDefault()
+}
+
+function handleResize(e) {
+  if (!isResizing.value || !containerRef.value) return
+  
+  const container = containerRef.value
+  const containerRect = container.getBoundingClientRect()
+  const containerHeight = containerRect.height
+  const mouseY = e.clientY - containerRect.top
+  
+  // Calculer le pourcentage (entre 15% et 70%)
+  let percentage = (mouseY / containerHeight) * 100
+  percentage = Math.max(15, Math.min(70, percentage))
+  
+  dataSectionHeight.value = percentage
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+}
+
 // Initialiser les cellules
 function getCellKey(row, col) {
   const colLetter = String.fromCharCode(65 + col) // A, B, C...
@@ -613,9 +646,9 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
 </script>
 
 <template>
-  <div class="view-data-excel">
+  <div class="view-data-excel" ref="containerRef" :class="{ 'resizing': isResizing }">
     <!-- PARTIE HAUTE : Sources de données -->
-    <section class="data-section">
+    <section class="data-section" :style="{ height: dataSectionHeight + '%' }">
       <div class="section-header">
         <div class="section-title">
           <span class="section-icon">📥</span>
@@ -713,7 +746,11 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
     </section>
 
     <!-- Séparateur redimensionnable -->
-    <div class="section-divider">
+    <div 
+      class="section-divider" 
+      :class="{ 'active': isResizing }"
+      @mousedown="startResize"
+    >
       <span class="divider-handle"></span>
     </div>
 
@@ -935,6 +972,11 @@ const readySources = computed(() => dataSources.value.filter(s => s.status === '
   min-height: 0;
 }
 
+.view-data-excel.resizing {
+  user-select: none;
+  cursor: row-resize;
+}
+
 /* Sections */
 section {
   display: flex;
@@ -944,8 +986,8 @@ section {
 
 .data-section {
   flex: 0 0 auto;
-  max-height: 35%;
-  min-height: 120px;
+  min-height: 80px;
+  overflow: hidden;
 }
 
 .excel-section {
@@ -1323,7 +1365,7 @@ section {
 
 /* Séparateur */
 .section-divider {
-  height: 6px;
+  height: 8px;
   background: var(--bg-tertiary);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
@@ -1331,13 +1373,34 @@ section {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.section-divider:hover {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.section-divider.active {
+  background: rgba(99, 102, 241, 0.25);
 }
 
 .divider-handle {
-  width: 40px;
-  height: 3px;
+  width: 50px;
+  height: 4px;
   background: var(--border-color);
   border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.section-divider:hover .divider-handle {
+  background: var(--accent);
+  width: 60px;
+}
+
+.section-divider.active .divider-handle {
+  background: var(--accent);
+  width: 70px;
 }
 
 /* Tableau Excel */
