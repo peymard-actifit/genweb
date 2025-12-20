@@ -1,6 +1,7 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { executePrompt, isConfigured } from '@/lib/openai'
+import { useSitesStore } from '@/stores/sites'
 
 const props = defineProps({
   site: {
@@ -12,6 +13,8 @@ const props = defineProps({
     default: null
   }
 })
+
+const sitesStore = useSitesStore()
 
 // État de l'API OpenAI
 const openaiConfigured = computed(() => isConfigured())
@@ -49,6 +52,100 @@ const dataSectionHeight = ref(30) // Pourcentage de hauteur pour la section haut
 const isResizing = ref(false)
 const containerRef = ref(null)
 
+// Sauvegarde automatique
+const isSaving = ref(false)
+const lastSaved = ref(null)
+let saveTimeout = null
+
+// Charger les données depuis les settings de la vue
+function loadViewData() {
+  const settings = props.view?.settings || {}
+  
+  // Charger les sources de données
+  if (settings.dataSources && Array.isArray(settings.dataSources)) {
+    dataSources.value = settings.dataSources
+    // Mettre à jour le compteur de référence
+    const maxRef = dataSources.value.reduce((max, s) => {
+      const num = parseInt(s.ref?.replace('D', '') || '0')
+      return Math.max(max, num)
+    }, 0)
+    dataRefCounter = maxRef + 1
+  }
+  
+  // Charger le spreadsheet
+  if (settings.spreadsheet) {
+    spreadsheet.rows = settings.spreadsheet.rows || 10
+    spreadsheet.cols = settings.spreadsheet.cols || 8
+    spreadsheet.cells = settings.spreadsheet.cells || {}
+  }
+  
+  // Charger la hauteur de section
+  if (settings.dataSectionHeight) {
+    dataSectionHeight.value = settings.dataSectionHeight
+  }
+}
+
+// Sauvegarder les données dans les settings de la vue
+async function saveViewData() {
+  if (!props.view?.id) return
+  
+  // Préparer les données à sauvegarder (sans les fichiers binaires)
+  const dataToSave = dataSources.value.map(source => ({
+    id: source.id,
+    ref: source.ref,
+    name: source.name,
+    type: source.type,
+    size: source.size,
+    category: source.category,
+    fetchPrompt: source.fetchPrompt,
+    data: typeof source.data === 'string' ? source.data : null, // Ne pas sauvegarder les ArrayBuffer
+    status: source.status,
+    parentEmail: source.parentEmail,
+    emailMeta: source.emailMeta,
+    createdAt: source.createdAt
+  }))
+  
+  const settings = {
+    dataSources: dataToSave,
+    spreadsheet: {
+      rows: spreadsheet.rows,
+      cols: spreadsheet.cols,
+      cells: spreadsheet.cells
+    },
+    dataSectionHeight: dataSectionHeight.value
+  }
+  
+  isSaving.value = true
+  
+  try {
+    await sitesStore.updateView(props.view.id, { settings })
+    lastSaved.value = new Date()
+  } catch (err) {
+    console.error('Erreur sauvegarde:', err)
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// Sauvegarde avec debounce (500ms)
+function triggerSave() {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout)
+  }
+  saveTimeout = setTimeout(() => {
+    saveViewData()
+  }, 500)
+}
+
+// Charger les données au montage et quand la vue change
+onMounted(() => {
+  loadViewData()
+})
+
+watch(() => props.view?.id, () => {
+  loadViewData()
+}, { immediate: false })
+
 function startResize(e) {
   isResizing.value = true
   document.addEventListener('mousemove', handleResize)
@@ -75,6 +172,8 @@ function stopResize() {
   isResizing.value = false
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  // Sauvegarder la nouvelle hauteur
+  triggerSave()
 }
 
 // Initialiser les cellules
@@ -90,7 +189,13 @@ function getCellData(row, col) {
 
 function setCellData(row, col, data) {
   const key = getCellKey(row, col)
-  spreadsheet.cells[key] = { ...getCellData(row, col), ...data }
+  const oldData = getCellData(row, col)
+  spreadsheet.cells[key] = { ...oldData, ...data }
+  
+  // Déclencher la sauvegarde automatique si le prompt ou la valeur change
+  if (data.prompt !== undefined || data.value !== undefined) {
+    triggerSave()
+  }
 }
 
 // Compteur pour les références de données
@@ -157,6 +262,7 @@ async function addDataSource(file) {
     const content = await readFileContent(file)
     source.data = content
     source.status = 'ready'
+    triggerSave()
   } catch (err) {
     source.status = 'error'
     console.error('Erreur lecture fichier:', err)
@@ -205,6 +311,7 @@ async function parseEmailFile(file) {
         dataSources.value.push(attachmentSource)
       }
     }
+    triggerSave()
   } catch (err) {
     // Fallback : créer une source simple si le parsing échoue
     const source = {
@@ -218,6 +325,7 @@ async function parseEmailFile(file) {
       status: 'ready'
     }
     dataSources.value.push(source)
+    triggerSave()
   }
 }
 
@@ -381,12 +489,13 @@ function removeDataSource(id) {
   // Si c'est un email, supprimer aussi ses pièces jointes
   const source = dataSources.value.find(s => s.id === id)
   if (source && source.category === 'email-body') {
-    dataSources.value = dataSources.value.filter(s => 
+    dataSources.value = dataSources.value.filter(s =>
       s.id !== id && s.parentEmail !== source.ref
     )
   } else {
     dataSources.value = dataSources.value.filter(s => s.id !== id)
   }
+  triggerSave()
 }
 
 function getSourceIcon(type, category) {
@@ -480,6 +589,7 @@ Fournis les données ou une description précise de ce qui serait récupéré.`
         source.data = result
         source.status = 'ready'
         source.updatedAt = new Date().toISOString()
+        triggerSave()
       }
     } else {
       // Création d'une nouvelle source
@@ -498,6 +608,7 @@ Fournis les données ou une description précise de ce qui serait récupéré.`
       dataSources.value.push(newSource)
     }
     
+    triggerSave()
     closeDataSourceEditor()
   } catch (err) {
     console.error('Erreur récupération données:', err)
@@ -522,10 +633,12 @@ function selectCell(row, col) {
 
 function addRow() {
   spreadsheet.rows++
+  triggerSave()
 }
 
 function addColumn() {
   spreadsheet.cols++
+  triggerSave()
 }
 
 function savePrompt(prompt) {
@@ -536,33 +649,39 @@ function savePrompt(prompt) {
 }
 
 // Exécution des prompts avec OpenAI
-async function executeCell(row, col) {
+async function executeCell(row, col, forceExecute = false) {
   const cell = getCellData(row, col)
   if (!cell.prompt) return
   
+  // Si le prompt n'a pas changé et qu'on a déjà une valeur, ne pas relancer l'IA
+  if (!forceExecute && cell.lastExecutedPrompt === cell.prompt && cell.value && !cell.error) {
+    return
+  }
+
   if (!openaiConfigured.value) {
-    setCellData(row, col, { 
+    setCellData(row, col, {
       value: '⚠️ API non configurée',
       error: 'Clé OpenAI manquante'
     })
     return
   }
-  
+
   setCellData(row, col, { isCalculating: true, error: null })
-  
+
   try {
     // Appel à l'API OpenAI avec les données sources
     const result = await executePrompt(cell.prompt, dataSources.value)
-    
-    setCellData(row, col, { 
-      isCalculating: false, 
+
+    setCellData(row, col, {
+      isCalculating: false,
       value: result,
-      error: null
+      error: null,
+      lastExecutedPrompt: cell.prompt // Mémoriser le prompt exécuté
     })
   } catch (err) {
     console.error('Erreur calcul cellule:', err)
-    setCellData(row, col, { 
-      isCalculating: false, 
+    setCellData(row, col, {
+      isCalculating: false,
       value: '❌ Erreur',
       error: err.message
     })
@@ -571,7 +690,8 @@ async function executeCell(row, col) {
 
 async function executeSingleCell() {
   if (selectedCell.value) {
-    await executeCell(selectedCell.value.row, selectedCell.value.col)
+    // Forcer l'exécution quand l'utilisateur clique sur le bouton
+    await executeCell(selectedCell.value.row, selectedCell.value.col, true)
     // Fermer le modal si le calcul a réussi (pas d'erreur)
     const cell = getCellData(selectedCell.value.row, selectedCell.value.col)
     if (cell.value && !cell.error) {
