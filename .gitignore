@@ -37,3 +37,6 @@ yarn-error.log*
 # Fichiers contenant des secrets (prompts d'initialisation)
 *ACTIFIT*CURSOR*.txt
 *.secrets.txt
+
+.vercel
+.env*.local
