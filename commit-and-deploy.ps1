@@ -33,7 +33,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Verifier qu on est dans le bon repertoire
-$projectPath = "C:\Users\patri\Documents\Cursor\Genweb"
+$projectPath = "d:\Cursor\GenWeb"
 Set-Location $projectPath
 
 # 1. Lire la version actuelle depuis package.json
