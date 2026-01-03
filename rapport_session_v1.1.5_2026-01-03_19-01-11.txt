@@ -1,0 +1,128 @@
+================================================================================
+                    RAPPORT D'INITIALISATION DE SESSION
+                    GENWEB - Version v1.1.5
+                    Date: 2026-01-03 19:01:11
+================================================================================
+
+1. STATISTIQUES DU CODE
+--------------------------------------------------------------------------------
+   Nombre de lignes de code (hors node_modules) : 8783 lignes
+   
+   Répartition par type de fichier :
+   - Vue.js (.vue)        : Composants frontend
+   - JavaScript (.js)     : Logique applicative
+   - CSS (.css)           : Styles
+   - PowerShell (.ps1)    : Scripts de déploiement
+   - SQL (.sql)           : Schéma base de données
+   
+   Structure du projet :
+   - /src/components/     : Composants Vue (EditPanel, HeaderBar, ModalDialog, etc.)
+   - /src/pages/          : Pages (Login, Sites, Studio, PublicSite)
+   - /src/stores/         : Stores Pinia (auth, sites)
+   - /src/lib/            : Librairies (supabase, openai)
+   - /scripts/            : Scripts utilitaires (fix-rls, setup-db)
+
+2. TOKENS ET API KEYS
+--------------------------------------------------------------------------------
+   ⚠️ INFORMATION DE SECURITE : Les valeurs des tokens et API keys ne sont 
+   pas divulguées dans ce rapport pour des raisons de sécurité.
+   
+   Variables d'environnement requises :
+   - VITE_SUPABASE_URL          : [CONFIGURÉ SUR VERCEL]
+   - VITE_SUPABASE_ANON_KEY     : [CONFIGURÉ SUR VERCEL]
+   - VITE_OPENAI_API_KEY        : [CONFIGURÉ SUR VERCEL]
+   - VERCEL_TOKEN (env système) : [PRÉSENT]
+   
+   Statut : Tokens configurés sur Vercel (dashboard)
+
+3. BASE DE DONNÉES
+--------------------------------------------------------------------------------
+   Type            : Supabase (PostgreSQL)
+   
+   Tables définies :
+   - studio_users  : Utilisateurs du studio (id, name, email, timestamps)
+   - sites         : Sites créés (id, name, owner_id, settings, publication)
+   - site_views    : Vues/onglets des sites (id, site_id, name, type, settings)
+   - site_users    : Utilisateurs des sites publiés (id, site_id, credentials)
+   
+   Sécurité :
+   - Row Level Security (RLS) activé sur toutes les tables
+   - Policies définies pour accès propriétaire uniquement
+   - Triggers automatiques pour updated_at
+   
+   Usage actuel : Non accessible directement (authentification requise)
+
+4. SYNCHRONISATION GIT
+--------------------------------------------------------------------------------
+   Statut          : ✅ SYNCHRONISÉ
+   
+   Dépôt distant   : https://github.com/peymard-actifit/genweb.git
+   Branche locale  : main
+   État            : À jour avec origin/main
+   
+   Derniers commits :
+   - 77e555e : v1.1.5 - Init session - correction chemin script et sync worktree
+   - 4cf1cb2 : v1.1.3 - Config Vercel complete avec toutes les cles API
+   - 8cc3c60 : v1.1.2 - Force redeploy - verification variables env Vercel
+   - f164672 : v1.1.1 - Init session - nettoyage gitignore et sync
+   - bac824b : v1.1.0 - Initialisation session - sync et nouvelle version
+
+5. SCRIPT DE DÉPLOIEMENT
+--------------------------------------------------------------------------------
+   Fichier         : commit-and-deploy.ps1
+   Statut          : ✅ FONCTIONNEL
+   Version actuelle: v1.1.5
+   
+   Fonctionnalités :
+   - Incrémentation automatique de version (Major/Minor/Patch)
+   - Commit avec message personnalisé
+   - Création de tag Git
+   - Push vers GitHub (commits + tags)
+   - Déploiement automatique via intégration Vercel
+   
+   Signaux affichés : [INFO], [SUCCESS], [WARNING], [ERROR], [STEP]
+   
+   Convention de versioning :
+   - Major (X.0.0) : Modification majeure
+   - Minor (X.Y.0) : Ajout de fonctionnalité
+   - Patch (X.Y.Z) : Correctif ou modification mineure
+
+6. UTILISATEURS CONNUS
+--------------------------------------------------------------------------------
+   ⚠️ INFORMATION DE SECURITE : Les mots de passe ne sont jamais divulgués.
+   
+   Système d'authentification : Supabase Auth
+   
+   Tables utilisateurs :
+   - studio_users : Propriétaires de sites (auth via Supabase)
+   - site_users   : Visiteurs des sites publiés (auth custom par site)
+   
+   Note : Les données utilisateurs sont stockées dans Supabase et protégées
+   par Row Level Security. Accès direct non autorisé.
+
+7. URLS DU PROJET
+--------------------------------------------------------------------------------
+   Application     : https://genweb-theta.vercel.app
+   GitHub          : https://github.com/peymard-actifit/genweb
+   Vercel Dashboard: https://vercel.com/patrick-eymards-projects/genweb
+
+================================================================================
+                              SYNTHÈSE FINALE
+================================================================================
+
+✅ TOUT EST OPÉRATIONNEL
+
+Le projet Genweb est correctement configuré et synchronisé :
+- Code source cloné et à jour (8783 lignes)
+- Worktree local synchronisé avec GitHub
+- Script de déploiement fonctionnel (v1.1.5 déployée)
+- Base de données Supabase configurée avec RLS
+- Variables d'environnement configurées sur Vercel
+- Versioning sémantique respecté
+
+Prochaine version possible : v1.1.6 (patch), v1.2.0 (minor), v2.0.0 (major)
+
+================================================================================
+                         Rapport généré automatiquement
+                         Genweb Session Init - Cursor AI
+================================================================================
