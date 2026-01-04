@@ -1140,7 +1140,7 @@ onUnmounted(() => {
     
     <!-- Vue du tapis de bridge plein écran -->
     <div v-else class="bridge-fullscreen">
-      <!-- Header compact avec numéro de donne, contrat et séquence -->
+      <!-- Header compact avec numéro de donne et contrat -->
       <div class="table-header">
         <div class="deal-info">
           <span class="deal-number">Donne {{ currentDealNumber }}</span>
@@ -1148,19 +1148,6 @@ onUnmounted(() => {
             <strong>{{ contract }}</strong>
             <span v-if="declarer"> par {{ declarer }}</span>
           </span>
-          <!-- Séquence d'enchères -->
-          <div v-if="bids.length > 0" class="bid-sequence">
-            <div class="bid-sequence-header">
-              <span>O</span><span>N</span><span>E</span><span>S</span>
-            </div>
-            <div class="bid-sequence-row" v-for="(row, idx) in bidSequenceRows" :key="idx">
-              <span v-for="(bid, bidIdx) in row" :key="bidIdx" 
-                    class="bid-item" 
-                    :class="{ 'bid-pass': bid === 'Passe', 'bid-contract': bid && bid !== 'Passe' && bid !== '-' }">
-                {{ bid || '-' }}
-              </span>
-            </div>
-          </div>
         </div>
         
         <div class="header-right">
@@ -1260,6 +1247,27 @@ onUnmounted(() => {
           <span class="table-position-label pos-north">N</span>
           <span class="table-position-label pos-west">O</span>
           <span class="table-position-label pos-east">E</span>
+          
+          <!-- Enchères posées sur la table (pendant les enchères) -->
+          <div v-if="currentPhase === 'bidding' && bids.length > 0" class="bids-on-table">
+            <div 
+              v-for="(bidItem, index) in bids" 
+              :key="index"
+              class="bid-card"
+              :class="[
+                `bid-position-${bidItem.position}`,
+                { 
+                  'bid-pass': bidItem.bid === 'Passe',
+                  'bid-double': bidItem.bid === 'Contre',
+                  'bid-redouble': bidItem.bid === 'Surcontre',
+                  'bid-contract': bidItem.bid !== 'Passe' && bidItem.bid !== 'Contre' && bidItem.bid !== 'Surcontre'
+                }
+              ]"
+              :style="{ '--bid-index': index }"
+            >
+              <span class="bid-text">{{ bidItem.bid }}</span>
+            </div>
+          </div>
           
           <!-- Cartes jouées DEVANT chaque joueur (agrandies) -->
           <div v-if="currentPhase === 'playing'" class="played-cards-area">
@@ -1703,48 +1711,6 @@ onUnmounted(() => {
   font-size: 1rem;
 }
 
-/* Séquence d'enchères */
-.bid-sequence {
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.7rem;
-  margin-top: 0.25rem;
-}
-
-.bid-sequence-header {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.25rem;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 600;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding-bottom: 0.15rem;
-  margin-bottom: 0.15rem;
-}
-
-.bid-sequence-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.25rem;
-  text-align: center;
-}
-
-.bid-item {
-  padding: 0.1rem 0.25rem;
-  border-radius: 0.2rem;
-}
-
-.bid-item.bid-pass {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.bid-item.bid-contract {
-  background: rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-  font-weight: 600;
-}
 
 .save-indicator {
   font-size: 0.75rem;
@@ -2054,6 +2020,72 @@ onUnmounted(() => {
   left: 8%;
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* ================================
+   ENCHÈRES POSÉES SUR LA TABLE
+   ================================ */
+.bids-on-table {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  max-width: 80%;
+  z-index: 5;
+}
+
+.bid-card {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  animation: bid-appear 0.3s ease-out;
+}
+
+@keyframes bid-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.5) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Enchère normale (contrat) */
+.bid-card.bid-contract {
+  background: linear-gradient(to bottom, #ffffff, #f0f0f0);
+  color: #1a1a2e;
+  border: 1px solid #ccc;
+}
+
+/* Passe */
+.bid-card.bid-pass {
+  background: linear-gradient(to bottom, #22c55e, #16a34a);
+  color: white;
+}
+
+/* Contre */
+.bid-card.bid-double {
+  background: linear-gradient(to bottom, #ef4444, #dc2626);
+  color: white;
+}
+
+/* Surcontre */
+.bid-card.bid-redouble {
+  background: linear-gradient(to bottom, #3b82f6, #2563eb);
+  color: white;
+}
+
+.bid-text {
+  white-space: nowrap;
 }
 
 /* ================================
