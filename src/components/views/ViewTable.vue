@@ -1180,30 +1180,6 @@ onUnmounted(() => {
         </div>
       </div>
       
-      <!-- Zone vidéo NORD (haut de l'écran) -->
-      <div class="video-zone video-north">
-        <div 
-          class="video-content"
-          :class="{ 
-            'is-turn': currentTurn === 'N',
-            'vulnerable': isVulnerable('N'),
-            'not-vulnerable': !isVulnerable('N')
-          }"
-        >
-          <div class="video-placeholder">
-            <span v-if="isAIPlayer('N')" class="ai-badge">🤖</span>
-          </div>
-          <div class="video-controls">
-            <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
-              {{ videoControls.N.video ? '📹' : '📷' }}
-            </button>
-            <button @click="toggleAudio('N')" :class="{ off: !videoControls.N.audio }">
-              {{ videoControls.N.audio ? '🔊' : '🔇' }}
-            </button>
-          </div>
-        </div>
-      </div>
-      
       <!-- Zone vidéo OUEST (gauche de l'écran) -->
       <div class="video-zone video-west">
         <div 
@@ -1252,8 +1228,33 @@ onUnmounted(() => {
         </div>
       </div>
       
-      <!-- Tapis de bridge central -->
+      <!-- Zone centrale: Vidéo Nord + Table -->
       <div class="table-center">
+        <!-- Vidéo Nord (partenaire) -->
+        <div class="video-zone video-north">
+          <div 
+            class="video-content"
+            :class="{ 
+              'is-turn': currentTurn === 'N',
+              'vulnerable': isVulnerable('N'),
+              'not-vulnerable': !isVulnerable('N')
+            }"
+          >
+            <div class="video-placeholder">
+              <span v-if="isAIPlayer('N')" class="ai-badge">🤖</span>
+            </div>
+            <div class="video-controls">
+              <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
+                {{ videoControls.N.video ? '📹' : '📷' }}
+              </button>
+              <button @click="toggleAudio('N')" :class="{ off: !videoControls.N.audio }">
+                {{ videoControls.N.audio ? '🔊' : '🔇' }}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Tapis de bridge -->
         <div class="table-felt">
           <!-- Labels d'orientation sur la table (en face de chaque joueur) -->
           <span class="table-position-label pos-north">N</span>
@@ -1669,12 +1670,12 @@ onUnmounted(() => {
   inset: 0;
   display: grid;
   grid-template-areas:
-    "header header header header"
-    "west center north east"
-    "west center center east"
-    "bottom bottom bottom bottom";
-  grid-template-rows: auto 120px 1fr 180px;
-  grid-template-columns: 140px 1fr 180px 140px;
+    "header header header"
+    "west center east"
+    "west center east"
+    "bottom bottom bottom";
+  grid-template-rows: auto 100px 1fr 160px;
+  grid-template-columns: 140px 1fr 140px;
   background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
   overflow: hidden;
 }
@@ -1854,9 +1855,7 @@ onUnmounted(() => {
 }
 
 .video-north {
-  grid-area: north;
-  justify-self: end;
-  padding-right: 1rem;
+  flex-shrink: 0;
 }
 
 .video-west {
@@ -1981,9 +1980,11 @@ onUnmounted(() => {
 .table-center {
   grid-area: center;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.5rem;
+  gap: 0.5rem;
   perspective: 1000px;
 }
 
