@@ -78,7 +78,12 @@ function goBack() {
         class="inline-tabs"
       />
       
-      <button class="toggle-panel-btn" @click="toggleEditPanel" :class="{ active: showEditPanel }">
+      <button 
+        v-if="activeView?.type !== 'table'"
+        class="toggle-panel-btn" 
+        @click="toggleEditPanel" 
+        :class="{ active: showEditPanel }"
+      >
         <svg viewBox="0 0 20 20" fill="currentColor">
           <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
         </svg>
@@ -105,10 +110,10 @@ function goBack() {
         </div>
       </main>
 
-      <!-- Panel d'édition -->
+      <!-- Panel d'édition (masqué sur la vue Table) -->
       <Transition name="slide">
         <EditPanel
-          v-if="showEditPanel"
+          v-if="showEditPanel && activeView?.type !== 'table'"
           :site="site"
           :active-view="activeView"
           @close="showEditPanel = false"
