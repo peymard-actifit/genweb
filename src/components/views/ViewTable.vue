@@ -1769,21 +1769,22 @@ onUnmounted(() => {
     "west center east"
     "west center east"
     "bottom bottom bottom";
-  grid-template-rows: auto 80px 1fr 180px;
-  grid-template-columns: 100px 1fr 100px;
+  grid-template-rows: auto 1fr 150px;
+  grid-template-columns: 90px 1fr 90px;
   background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
   overflow: hidden;
 }
 
-/* Header */
+/* Header compact */
 .table-header {
   grid-area: header;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 1rem;
   background: rgba(0, 0, 0, 0.7);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 32px;
 }
 
 .header-right {
@@ -2040,16 +2041,15 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
-  gap: 0.25rem;
+  padding: 0.5rem;
   perspective: 1200px;
 }
 
 .table-felt {
   width: 100%;
-  max-width: 800px;
-  min-height: 400px;
-  aspect-ratio: 1.4;
+  max-width: 95%;
+  height: 100%;
+  max-height: 100%;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 0.5rem;
