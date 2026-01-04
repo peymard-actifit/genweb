@@ -27,11 +27,51 @@ const myPosition = ref(null) // 'S', 'W', 'N', 'E'
 const myCards = ref([])
 
 // État du jeu
-const currentPhase = ref('waiting') // 'waiting', 'bidding', 'playing'
+const currentPhase = ref('bidding') // 'waiting', 'bidding', 'playing'
+const currentDealNumber = ref(1)
+const currentDealer = ref('N') // Donneur de la donne en cours
+const currentTurn = ref('N') // À qui c'est de jouer/enchérir
 const bids = ref([])
 const currentTrick = ref([])
 const declarer = ref(null)
 const contract = ref(null)
+
+// Vulnérabilité par camp (NS = Nord-Sud, EW = Est-Ouest)
+// Selon les règles du bridge: donne 1 = personne, 2 = NS, 3 = EW, 4 = tous, puis cycle
+const vulnerability = computed(() => {
+  const deal = ((currentDealNumber.value - 1) % 16) + 1
+  const vulnPattern = {
+    1: { NS: false, EW: false },
+    2: { NS: true, EW: false },
+    3: { NS: false, EW: true },
+    4: { NS: true, EW: true },
+    5: { NS: true, EW: false },
+    6: { NS: false, EW: true },
+    7: { NS: true, EW: true },
+    8: { NS: false, EW: false },
+    9: { NS: false, EW: true },
+    10: { NS: true, EW: true },
+    11: { NS: false, EW: false },
+    12: { NS: true, EW: false },
+    13: { NS: true, EW: true },
+    14: { NS: false, EW: false },
+    15: { NS: true, EW: false },
+    16: { NS: false, EW: true }
+  }
+  return vulnPattern[deal]
+})
+
+// Vérifie si un joueur est vulnérable
+function isVulnerable(position) {
+  if (position === 'N' || position === 'S') {
+    return vulnerability.value.NS
+  }
+  return vulnerability.value.EW
+}
+
+// Enchères sélectionnées pour affichage agrandi
+const hoveredBid = ref(null)
+const selectedBids = ref([]) // Enchères sélectionnées pour comparaison
 
 // Chat
 const chatMessages = ref([])
@@ -51,6 +91,28 @@ function toggleVideo(position) {
 
 function toggleAudio(position) {
   videoControls.value[position].audio = !videoControls.value[position].audio
+}
+
+// Gestion des enchères agrandies
+function hoverBid(bid) {
+  hoveredBid.value = bid
+}
+
+function unhoverBid() {
+  hoveredBid.value = null
+}
+
+function selectBidForComparison(bid, event) {
+  event.stopPropagation()
+  if (selectedBids.value.includes(bid)) {
+    selectedBids.value = selectedBids.value.filter(b => b !== bid)
+  } else if (selectedBids.value.length < 2) {
+    selectedBids.value.push(bid)
+  }
+}
+
+function clearSelectedBids() {
+  selectedBids.value = []
 }
 
 // Positions des joueurs (relatif à SUD qui est toujours en bas)
@@ -256,14 +318,44 @@ function subscribeToTable(tableId) {
 // Fonctions de jeu
 function playCard(card) {
   if (currentPhase.value !== 'playing') return
+  if (currentTurn.value !== myPosition.value) {
+    console.log('Ce n\'est pas votre tour')
+    return
+  }
   console.log('Jouer carte:', card)
-  // TODO: Implémenter la logique de jeu
+  // TODO: Implémenter la logique de jeu et sauvegarder en BDD
 }
 
-function makeBid(bid) {
+async function makeBid(bid) {
   if (currentPhase.value !== 'bidding') return
+  if (currentTurn.value !== myPosition.value) {
+    console.log('Ce n\'est pas votre tour d\'enchérir')
+    return
+  }
+  
   console.log('Enchère:', bid)
-  // TODO: Implémenter la logique d'enchères
+  
+  // Ajouter l'enchère à la liste locale
+  bids.value.push({
+    position: myPosition.value,
+    bid: bid,
+    timestamp: new Date()
+  })
+  
+  // Passer au joueur suivant (sens horaire: N -> E -> S -> W -> N)
+  const nextPlayer = { 'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N' }
+  currentTurn.value = nextPlayer[currentTurn.value]
+  
+  // TODO: Sauvegarder en BDD et vérifier si les enchères sont terminées
+  // await saveBidToDatabase(bid)
+}
+
+// Ordre de jeu pour une donne
+const dealerRotation = ['N', 'E', 'S', 'W']
+
+function getNextDealer() {
+  const currentIndex = dealerRotation.indexOf(currentDealer.value)
+  return dealerRotation[(currentIndex + 1) % 4]
 }
 
 function sendMessage() {
@@ -360,8 +452,12 @@ onMounted(() => {
     
     <!-- Vue du tapis de bridge plein écran -->
     <div v-else class="bridge-fullscreen">
-      <!-- Header compact -->
+      <!-- Header compact avec numéro de donne -->
       <div class="table-header">
+        <div class="deal-info">
+          <span class="deal-number">Donne {{ currentDealNumber }}</span>
+          <span class="dealer-info">Donneur: {{ currentDealer }}</span>
+        </div>
         <button class="btn-leave" @click="leaveTable">← Quitter</button>
         <h3>{{ currentTable.name }}</h3>
         <span class="phase-badge">{{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : 'Jeu' }}</span>
@@ -369,61 +465,70 @@ onMounted(() => {
       
       <!-- Zone vidéo NORD (haut de l'écran) -->
       <div class="video-zone video-north">
-        <span class="video-label">N</span>
-        <div class="video-content">
+        <div 
+          class="video-content"
+          :class="{ 
+            'is-turn': currentTurn === 'N',
+            'vulnerable': isVulnerable('N'),
+            'not-vulnerable': !isVulnerable('N')
+          }"
+        >
+          <span class="video-label">N</span>
           <div class="video-placeholder"></div>
-        </div>
-        <div class="video-controls">
-          <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
-            {{ videoControls.N.video ? '📹' : '📷' }}
-          </button>
-          <button @click="toggleAudio('N')" :class="{ off: !videoControls.N.audio }">
-            {{ videoControls.N.audio ? '🔊' : '🔇' }}
-          </button>
-        </div>
-        <!-- Cartes du Nord (dos) -->
-        <div class="opponent-cards horizontal">
-          <div v-for="i in 13" :key="i" class="card-back-small"></div>
+          <div class="video-controls">
+            <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
+              {{ videoControls.N.video ? '📹' : '📷' }}
+            </button>
+            <button @click="toggleAudio('N')" :class="{ off: !videoControls.N.audio }">
+              {{ videoControls.N.audio ? '🔊' : '🔇' }}
+            </button>
+          </div>
         </div>
       </div>
       
       <!-- Zone vidéo OUEST (gauche de l'écran) -->
       <div class="video-zone video-west">
-        <span class="video-label">O</span>
-        <div class="video-content">
+        <div 
+          class="video-content"
+          :class="{ 
+            'is-turn': currentTurn === 'W',
+            'vulnerable': isVulnerable('W'),
+            'not-vulnerable': !isVulnerable('W')
+          }"
+        >
+          <span class="video-label">O</span>
           <div class="video-placeholder"></div>
-        </div>
-        <div class="video-controls">
-          <button @click="toggleVideo('W')" :class="{ off: !videoControls.W.video }">
-            {{ videoControls.W.video ? '📹' : '📷' }}
-          </button>
-          <button @click="toggleAudio('W')" :class="{ off: !videoControls.W.audio }">
-            {{ videoControls.W.audio ? '🔊' : '🔇' }}
-          </button>
-        </div>
-        <!-- Cartes de l'Ouest (dos vertical) -->
-        <div class="opponent-cards vertical">
-          <div v-for="i in 13" :key="i" class="card-back-small"></div>
+          <div class="video-controls">
+            <button @click="toggleVideo('W')" :class="{ off: !videoControls.W.video }">
+              {{ videoControls.W.video ? '📹' : '📷' }}
+            </button>
+            <button @click="toggleAudio('W')" :class="{ off: !videoControls.W.audio }">
+              {{ videoControls.W.audio ? '🔊' : '🔇' }}
+            </button>
+          </div>
         </div>
       </div>
       
       <!-- Zone vidéo EST (droite de l'écran) -->
       <div class="video-zone video-east">
-        <span class="video-label">E</span>
-        <div class="video-content">
+        <div 
+          class="video-content"
+          :class="{ 
+            'is-turn': currentTurn === 'E',
+            'vulnerable': isVulnerable('E'),
+            'not-vulnerable': !isVulnerable('E')
+          }"
+        >
+          <span class="video-label">E</span>
           <div class="video-placeholder"></div>
-        </div>
-        <div class="video-controls">
-          <button @click="toggleVideo('E')" :class="{ off: !videoControls.E.video }">
-            {{ videoControls.E.video ? '📹' : '📷' }}
-          </button>
-          <button @click="toggleAudio('E')" :class="{ off: !videoControls.E.audio }">
-            {{ videoControls.E.audio ? '🔊' : '🔇' }}
-          </button>
-        </div>
-        <!-- Cartes de l'Est (dos vertical) -->
-        <div class="opponent-cards vertical">
-          <div v-for="i in 13" :key="i" class="card-back-small"></div>
+          <div class="video-controls">
+            <button @click="toggleVideo('E')" :class="{ off: !videoControls.E.video }">
+              {{ videoControls.E.video ? '📹' : '📷' }}
+            </button>
+            <button @click="toggleAudio('E')" :class="{ off: !videoControls.E.audio }">
+              {{ videoControls.E.audio ? '🔊' : '🔇' }}
+            </button>
+          </div>
         </div>
       </div>
       
@@ -437,12 +542,69 @@ onMounted(() => {
             <div class="played-card east-play"></div>
             <div class="played-card south-play"></div>
           </div>
+          
+          <!-- Boîte à enchères sur la table -->
+          <div v-if="currentPhase === 'bidding'" class="bidding-box-on-table">
+            <div class="bid-grid">
+              <div v-for="level in bidLevels" :key="level" class="bid-row">
+                <button 
+                  v-for="suit in bidSuits" 
+                  :key="`${level}${suit}`"
+                  class="bid-btn"
+                  :class="{ 
+                    'suit-clubs': suit === '♣', 
+                    'suit-diamonds': suit === '♦', 
+                    'suit-hearts': suit === '♥', 
+                    'suit-spades': suit === '♠', 
+                    'suit-nt': suit === 'SA',
+                    'is-hovered': hoveredBid === `${level}${suit}`,
+                    'is-selected': selectedBids.includes(`${level}${suit}`)
+                  }"
+                  @mouseenter="hoverBid(`${level}${suit}`)"
+                  @mouseleave="unhoverBid()"
+                  @click="makeBid(`${level}${suit}`)"
+                  @contextmenu.prevent="selectBidForComparison(`${level}${suit}`, $event)"
+                >
+                  {{ level }}{{ suit }}
+                </button>
+              </div>
+            </div>
+            <div class="special-bids">
+              <button 
+                v-for="bid in specialBids" 
+                :key="bid" 
+                class="bid-btn special"
+                :class="{ 
+                  'is-hovered': hoveredBid === bid,
+                  'is-selected': selectedBids.includes(bid)
+                }"
+                @mouseenter="hoverBid(bid)"
+                @mouseleave="unhoverBid()"
+                @click="makeBid(bid)"
+                @contextmenu.prevent="selectBidForComparison(bid, $event)"
+              >
+                {{ bid }}
+              </button>
+            </div>
+          </div>
+          
           <!-- Direction indicator -->
           <div class="compass">
             <span class="compass-n">N</span>
             <span class="compass-w">O</span>
             <span class="compass-e">E</span>
             <span class="compass-s">S</span>
+          </div>
+        </div>
+        
+        <!-- Enchères agrandies (au survol ou sélectionnées) -->
+        <div v-if="hoveredBid || selectedBids.length > 0" class="enlarged-bids">
+          <div v-if="hoveredBid && !selectedBids.includes(hoveredBid)" class="enlarged-bid hovered">
+            <span class="bid-level">{{ hoveredBid }}</span>
+          </div>
+          <div v-for="bid in selectedBids" :key="bid" class="enlarged-bid selected" @click="selectBidForComparison(bid, $event)">
+            <span class="bid-level">{{ bid }}</span>
+            <button class="remove-bid" @click.stop="selectBidForComparison(bid, $event)">×</button>
           </div>
         </div>
       </div>
@@ -489,40 +651,25 @@ onMounted(() => {
         
         <!-- Ma vidéo (droite) -->
         <div class="my-video-zone">
-          <span class="video-label">S (Moi)</span>
-          <div class="video-content">
+          <div 
+            class="video-content"
+            :class="{ 
+              'is-turn': currentTurn === 'S',
+              'vulnerable': isVulnerable('S'),
+              'not-vulnerable': !isVulnerable('S')
+            }"
+          >
+            <span class="video-label">S (Moi)</span>
             <div class="video-placeholder"></div>
+            <div class="video-controls">
+              <button @click="toggleVideo('S')" :class="{ off: !videoControls.S.video }">
+                {{ videoControls.S.video ? '📹' : '📷' }}
+              </button>
+              <button @click="toggleAudio('S')" :class="{ off: !videoControls.S.audio }">
+                {{ videoControls.S.audio ? '🔊' : '🔇' }}
+              </button>
+            </div>
           </div>
-          <div class="video-controls">
-            <button @click="toggleVideo('S')" :class="{ off: !videoControls.S.video }">
-              {{ videoControls.S.video ? '📹' : '📷' }}
-            </button>
-            <button @click="toggleAudio('S')" :class="{ off: !videoControls.S.audio }">
-              {{ videoControls.S.audio ? '🔊' : '🔇' }}
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Boîte à enchères (visible pendant les enchères) -->
-      <div v-if="currentPhase === 'bidding'" class="bidding-box">
-        <div class="bid-grid">
-          <div v-for="level in bidLevels" :key="level" class="bid-row">
-            <button 
-              v-for="suit in bidSuits" 
-              :key="`${level}${suit}`"
-              class="bid-btn"
-              :class="{ 'suit-clubs': suit === '♣', 'suit-diamonds': suit === '♦', 'suit-hearts': suit === '♥', 'suit-spades': suit === '♠', 'suit-nt': suit === 'SA' }"
-              @click="makeBid(`${level}${suit}`)"
-            >
-              {{ level }}{{ suit }}
-            </button>
-          </div>
-        </div>
-        <div class="special-bids">
-          <button v-for="bid in specialBids" :key="bid" class="bid-btn special" @click="makeBid(bid)">
-            {{ bid }}
-          </button>
         </div>
       </div>
     </div>
@@ -733,6 +880,23 @@ onMounted(() => {
   font-size: 1rem;
 }
 
+.deal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.deal-number {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #fbbf24;
+}
+
+.dealer-info {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .btn-leave {
   padding: 0.4rem 0.8rem;
   background: rgba(255, 255, 255, 0.1);
@@ -765,37 +929,20 @@ onMounted(() => {
   flex-direction: column;
   padding: 0.5rem;
   position: relative;
+  align-items: center;
+  justify-content: center;
 }
 
 .video-north {
   grid-area: north;
-  align-items: center;
-  justify-content: flex-start;
 }
 
 .video-west {
   grid-area: west;
-  align-items: flex-start;
-  justify-content: center;
 }
 
 .video-east {
   grid-area: east;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.video-label {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  font-size: 1.25rem;
-  font-weight: bold;
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(0, 0, 0, 0.5);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  z-index: 10;
 }
 
 .video-content {
@@ -803,8 +950,67 @@ onMounted(() => {
   height: 120px;
   border-radius: 0.5rem;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.2);
   background: #1a1a2e;
+  position: relative;
+  transition: border-color 0.3s;
+}
+
+/* Vulnérabilité - bordure verte ou rouge */
+.video-content.not-vulnerable {
+  border-color: #22c55e;
+}
+
+.video-content.vulnerable {
+  border-color: #ef4444;
+}
+
+/* Tour du joueur - bordure clignotante */
+.video-content.is-turn {
+  animation: turn-blink 1s infinite;
+}
+
+.video-content.is-turn.not-vulnerable {
+  animation: turn-blink-green 1s infinite;
+}
+
+.video-content.is-turn.vulnerable {
+  animation: turn-blink-red 1s infinite;
+}
+
+@keyframes turn-blink-green {
+  0%, 100% { 
+    border-color: #22c55e;
+    box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+  }
+  50% { 
+    border-color: #86efac;
+    box-shadow: 0 0 20px #22c55e, 0 0 40px #22c55e;
+  }
+}
+
+@keyframes turn-blink-red {
+  0%, 100% { 
+    border-color: #ef4444;
+    box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
+  }
+  50% { 
+    border-color: #fca5a5;
+    box-shadow: 0 0 20px #ef4444, 0 0 40px #ef4444;
+  }
+}
+
+.video-label {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  font-size: 1rem;
+  font-weight: bold;
+  color: white;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  z-index: 10;
 }
 
 .video-placeholder {
@@ -814,60 +1020,29 @@ onMounted(() => {
 }
 
 .video-controls {
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0.25rem;
   display: flex;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
+  gap: 0.2rem;
 }
 
 .video-controls button {
-  padding: 0.3rem 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.2rem;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
 .video-controls button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .video-controls button.off {
-  background: rgba(239, 68, 68, 0.3);
-  border-color: rgba(239, 68, 68, 0.5);
-}
-
-/* Cartes des adversaires */
-.opponent-cards {
-  display: flex;
-  margin-top: 0.5rem;
-}
-
-.opponent-cards.horizontal {
-  flex-direction: row;
-}
-
-.opponent-cards.vertical {
-  flex-direction: column;
-}
-
-.card-back-small {
-  width: 25px;
-  height: 35px;
-  background: linear-gradient(135deg, #1e40af, #3b82f6);
-  border: 1px solid #60a5fa;
-  border-radius: 2px;
-  margin-left: -18px;
-}
-
-.opponent-cards.vertical .card-back-small {
-  margin-left: 0;
-  margin-top: -28px;
-}
-
-.card-back-small:first-child {
-  margin-left: 0;
-  margin-top: 0;
+  background: rgba(239, 68, 68, 0.6);
+  border-color: rgba(239, 68, 68, 0.8);
 }
 
 /* ================================
@@ -943,6 +1118,130 @@ onMounted(() => {
 .compass-s { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); }
 .compass-e { position: absolute; right: -15px; top: 50%; transform: translateY(-50%); }
 .compass-w { position: absolute; left: -15px; top: 50%; transform: translateY(-50%); }
+
+/* ================================
+   BOÎTE À ENCHÈRES SUR LA TABLE
+   ================================ */
+.bidding-box-on-table {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  z-index: 10;
+}
+
+.bidding-box-on-table .bid-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bidding-box-on-table .bid-row {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.bidding-box-on-table .bid-btn {
+  width: 32px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: all 0.15s;
+}
+
+.bidding-box-on-table .bid-btn:hover,
+.bidding-box-on-table .bid-btn.is-hovered {
+  transform: scale(1.3);
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.bidding-box-on-table .bid-btn.is-selected {
+  background: rgba(251, 191, 36, 0.4);
+  border-color: #fbbf24;
+}
+
+.bidding-box-on-table .bid-btn.suit-clubs { color: #22c55e; }
+.bidding-box-on-table .bid-btn.suit-diamonds { color: #f97316; }
+.bidding-box-on-table .bid-btn.suit-hearts { color: #ef4444; }
+.bidding-box-on-table .bid-btn.suit-spades { color: #3b82f6; }
+.bidding-box-on-table .bid-btn.suit-nt { color: #a855f7; }
+
+.bidding-box-on-table .special-bids {
+  display: flex;
+  gap: 0.15rem;
+  margin-top: 0.3rem;
+}
+
+.bidding-box-on-table .bid-btn.special {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.55rem;
+}
+
+/* Enchères agrandies */
+.enlarged-bids {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.enlarged-bid {
+  width: 80px;
+  height: 100px;
+  background: white;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+.enlarged-bid.hovered {
+  border: 3px solid #3b82f6;
+}
+
+.enlarged-bid.selected {
+  border: 3px solid #fbbf24;
+  cursor: pointer;
+}
+
+.enlarged-bid .bid-level {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #1a1a2e;
+}
+
+.enlarged-bid .remove-bid {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  background: #ef4444;
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ================================
    ZONE BASSE
@@ -1079,79 +1378,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  position: relative;
-}
-
-.my-video-zone .video-label {
-  position: static;
-  margin-bottom: 0.25rem;
-  font-size: 0.9rem;
+  justify-content: center;
 }
 
 .my-video-zone .video-content {
-  width: 160px;
-  height: 100px;
-}
-
-/* ================================
-   BOÎTE À ENCHÈRES
-   ================================ */
-.bidding-box {
-  position: fixed;
-  top: 50%;
-  right: 200px;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.75rem;
-  padding: 0.75rem;
-  z-index: 100;
-}
-
-.bid-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.bid-row {
-  display: flex;
-  gap: 0.2rem;
-}
-
-.bid-btn {
-  width: 34px;
-  height: 26px;
-  border: none;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  transition: all 0.1s;
-}
-
-.bid-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.05);
-}
-
-.bid-btn.suit-clubs { color: #22c55e; }
-.bid-btn.suit-diamonds { color: #f97316; }
-.bid-btn.suit-hearts { color: #ef4444; }
-.bid-btn.suit-spades { color: #3b82f6; }
-.bid-btn.suit-nt { color: #a855f7; }
-
-.special-bids {
-  display: flex;
-  gap: 0.2rem;
-  margin-top: 0.4rem;
-}
-
-.bid-btn.special {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.05);
+  width: 180px;
+  height: 120px;
 }
 
 /* Modal */
