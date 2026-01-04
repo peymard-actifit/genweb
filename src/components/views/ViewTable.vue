@@ -2074,40 +2074,36 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* Nord: enchères en haut, centrées horizontalement */
+/* Nord: enchères entre le bord et la lettre N */
 .north-bids {
-  top: 12%;
+  top: 2%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
 }
 
-/* Sud: enchères en bas, centrées horizontalement */
+/* Sud: enchères entre le bord et la zone joueur */
 .south-bids {
-  bottom: 12%;
+  bottom: 2%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
 }
 
-/* Ouest: enchères à gauche */
+/* Ouest: enchères entre le bord et la lettre O */
 .west-bids {
-  left: 12%;
+  left: 2%;
   top: 50%;
   transform: translateY(-50%);
-  flex-direction: row;
-  writing-mode: vertical-rl;
-  flex-wrap: wrap;
+  flex-direction: column;
 }
 
-/* Est: enchères à droite */
+/* Est: enchères entre le bord et la lettre E */
 .east-bids {
-  right: 12%;
+  right: 2%;
   top: 50%;
   transform: translateY(-50%);
-  flex-direction: row;
-  writing-mode: vertical-lr;
-  flex-wrap: wrap;
+  flex-direction: column;
 }
 
 /* Cartons d'enchères réalistes - style Bridge Partner */
@@ -2128,10 +2124,10 @@ onUnmounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.2);
 }
 
-/* Pour Ouest et Est, rotation du texte */
+/* Cartons O et E en colonne */
 .west-bids .bid-card,
 .east-bids .bid-card {
-  writing-mode: horizontal-tb;
+  margin: 1px 0;
 }
 
 @keyframes bid-appear {
