@@ -1924,9 +1924,10 @@ onUnmounted(() => {
 }
 
 .video-north {
-  flex-shrink: 0;
-  align-self: flex-end;
-  margin-right: 2rem;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 10;
 }
 
 .video-west {
@@ -2055,16 +2056,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
+  justify-content: flex-start;
+  padding: 0;
   perspective: 1200px;
 }
 
 .table-felt {
   width: 100%;
-  max-width: 95%;
   height: 100%;
-  max-height: 100%;
+  aspect-ratio: 1;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 0.5rem;
@@ -2161,40 +2161,40 @@ onUnmounted(() => {
   flex-direction: row;
 }
 
-/* Ouest: enchères le long du bord gauche (texte vers le joueur O) */
+/* Ouest: enchères le long du bord gauche (texte lisible depuis le centre) */
 .west-bids {
   left: 3%;
-  top: 50%;
-  transform: translateY(-50%) rotate(-90deg);
-  flex-direction: row;
-  transform-origin: center center;
-}
-
-/* Est: enchères le long du bord droit (texte vers le joueur E) */
-.east-bids {
-  right: 3%;
   top: 50%;
   transform: translateY(-50%) rotate(90deg);
   flex-direction: row;
   transform-origin: center center;
 }
 
-/* Cartons d'enchères - GRANDS et LISIBLES */
+/* Est: enchères le long du bord droit (texte lisible depuis le centre) */
+.east-bids {
+  right: 3%;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  flex-direction: row;
+  transform-origin: center center;
+}
+
+/* Cartons d'enchères - TRÈS GRANDS et LISIBLES */
 .bid-card {
-  width: 48px;
-  height: 34px;
+  width: 56px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  font-size: 1.2rem;
+  border-radius: 5px;
+  font-size: 1.4rem;
   font-weight: 900;
   box-shadow: 
-    0 3px 8px rgba(0, 0, 0, 0.6),
+    0 4px 10px rgba(0, 0, 0, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   animation: bid-appear 0.3s ease-out;
   white-space: nowrap;
-  border: 2px solid rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(0, 0, 0, 0.4);
 }
 
 /* Espacement des cartons */
@@ -2450,13 +2450,13 @@ onUnmounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES - Très petite, à DROITE de la table
+   BOÎTE À ENCHÈRES - à DROITE de la table
    ================================ */
 .bidding-box-3d {
   position: absolute;
   bottom: 5%;
   right: 2%;
-  transform: scale(0.4);
+  transform: scale(0.6);
   transform-origin: bottom right;
   z-index: 50;
 }
@@ -2873,18 +2873,20 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H au CENTRE entre chat et cartes - SANS bordure */
+/* Points H proche des cartes - SANS bordure */
 .hand-points-center {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
   padding: 0;
+  padding-right: 10px;
   background: transparent;
   border: none;
 }
 
 .hand-points-center .points-value {
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: bold;
   color: #fbbf24;
   line-height: 1;
@@ -2892,7 +2894,7 @@ onUnmounted(() => {
 }
 
 .hand-points-center .points-label {
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: rgba(255, 255, 255, 0.7);
   font-weight: 600;
 }
