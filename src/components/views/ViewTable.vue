@@ -81,29 +81,19 @@ const tricksPlayed = ref(0)
 const lastSaveTime = ref(null)
 const isSaving = ref(false)
 
-// Calcul des points d'une main
+// Calcul des points H (honneurs uniquement)
 function calculateHandPoints(hand) {
   if (!hand || hand.length === 0) return 0
   
   let points = 0
-  const suitCounts = { '♠': 0, '♥': 0, '♦': 0, '♣': 0 }
   
   hand.forEach(card => {
-    // Points d'honneurs
+    // Points d'honneurs uniquement (H)
     if (card.rank === 'A') points += 4
     else if (card.rank === 'K') points += 3
     else if (card.rank === 'Q') points += 2
     else if (card.rank === 'J') points += 1
-    
-    suitCounts[card.suit]++
   })
-  
-  // Points de distribution (chicane = 3, singleton = 2, doubleton = 1)
-  for (const count of Object.values(suitCounts)) {
-    if (count === 0) points += 3
-    else if (count === 1) points += 2
-    else if (count === 2) points += 1
-  }
   
   return points
 }
@@ -1458,10 +1448,10 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <!-- Points du jeu -->
-          <div class="hand-points">
+          <!-- Points H (honneurs) à droite du jeu -->
+          <div class="hand-points-right">
             <div class="points-value">{{ myHandPoints }}</div>
-            <div class="points-label">pts</div>
+            <div class="points-label">H</div>
           </div>
         </div>
         
@@ -1814,7 +1804,7 @@ onUnmounted(() => {
 .video-zone {
   display: flex;
   flex-direction: column;
-  padding: 0.5rem;
+  padding: 0.75rem;
   position: relative;
   align-items: center;
   justify-content: center;
@@ -1822,19 +1812,23 @@ onUnmounted(() => {
 
 .video-north {
   flex-shrink: 0;
+  align-self: flex-end;
+  margin-right: 2rem;
 }
 
 .video-west {
   grid-area: west;
+  padding-left: 1rem;
 }
 
 .video-east {
   grid-area: east;
+  padding-right: 1rem;
 }
 
 .video-content {
-  width: 160px;
-  height: 120px;
+  width: 140px;
+  height: 105px;
   border-radius: 0.5rem;
   overflow: hidden;
   border: 3px solid rgba(255, 255, 255, 0.2);
@@ -2467,11 +2461,12 @@ onUnmounted(() => {
 .bottom-zone {
   grid-area: bottom;
   display: grid;
-  grid-template-columns: 280px 1fr 200px;
-  gap: 1rem;
+  grid-template-columns: 220px 1fr 160px;
+  gap: 0.75rem;
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.3);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  max-height: 160px;
 }
 
 /* Chat Panel */
@@ -2482,6 +2477,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 0.5rem;
   overflow: hidden;
+  max-height: 140px;
 }
 
 .chat-header {
@@ -2543,10 +2539,11 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 1rem;
   perspective: 1000px;
   padding-bottom: 0.5rem;
-  transform: translateY(-30px);
+  transform: translateY(-20px);
+  position: relative;
 }
 
 .my-hand-arc {
@@ -2554,7 +2551,7 @@ onUnmounted(() => {
   justify-content: center;
   align-items: flex-end;
   position: relative;
-  height: 160px;
+  height: 150px;
   transform-style: preserve-3d;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.3), transparent);
   padding: 10px 20px;
@@ -2641,7 +2638,37 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points du jeu */
+/* Points H à droite du jeu */
+.hand-points-right {
+  position: absolute;
+  right: -70px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.4));
+  border: 2px solid #fbbf24;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  min-width: 40px;
+}
+
+.hand-points-right .points-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #fbbf24;
+  line-height: 1;
+}
+
+.hand-points-right .points-label {
+  font-size: 0.65rem;
+  color: rgba(251, 191, 36, 0.8);
+  font-weight: 600;
+}
+
+/* Ancien style (compatibilité) */
 .hand-points {
   display: flex;
   flex-direction: column;
@@ -2719,8 +2746,8 @@ onUnmounted(() => {
 }
 
 .my-video-zone .video-content {
-  width: 180px;
-  height: 120px;
+  width: 140px;
+  height: 105px;
 }
 
 /* Modal */
