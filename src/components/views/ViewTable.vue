@@ -1562,7 +1562,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-        </div>
         
         <!-- Ma vidéo (droite) - avec vraie caméra -->
         <div class="my-video-zone">
