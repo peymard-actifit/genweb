@@ -787,11 +787,17 @@ function isSpecialBidValid(bid) {
   return false
 }
 
-// Classe CSS pour une enchère
+// Classe CSS pour une enchère (avec couleur)
 function getBidClass(bid) {
   if (bid === 'Passe') return 'bid-pass'
   if (bid === 'Contre') return 'bid-double'
   if (bid === 'Surcontre') return 'bid-redouble'
+  // Déterminer la couleur pour les contrats
+  if (bid.includes('♣')) return 'bid-contract suit-clubs'
+  if (bid.includes('♦')) return 'bid-contract suit-diamonds'
+  if (bid.includes('♥')) return 'bid-contract suit-hearts'
+  if (bid.includes('♠')) return 'bid-contract suit-spades'
+  if (bid.includes('SA')) return 'bid-contract suit-nt'
   return 'bid-contract'
 }
 
@@ -2052,7 +2058,7 @@ onUnmounted(() => {
 }
 
 /* ================================
-   ENCHÈRES DEVANT CHAQUE JOUEUR (comme au vrai bridge)
+   ENCHÈRES DEVANT CHAQUE JOUEUR (cartons réalistes)
    ================================ */
 .bidding-areas {
   position: absolute;
@@ -2064,13 +2070,13 @@ onUnmounted(() => {
 .player-bids {
   position: absolute;
   display: flex;
-  gap: 3px;
+  gap: 2px;
   pointer-events: none;
 }
 
 /* Nord: enchères en haut, centrées horizontalement */
 .north-bids {
-  top: 8%;
+  top: 12%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
@@ -2078,72 +2084,106 @@ onUnmounted(() => {
 
 /* Sud: enchères en bas, centrées horizontalement */
 .south-bids {
-  bottom: 8%;
+  bottom: 12%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
 }
 
-/* Ouest: enchères à gauche, centrées verticalement */
+/* Ouest: enchères à gauche */
 .west-bids {
-  left: 8%;
+  left: 12%;
   top: 50%;
   transform: translateY(-50%);
-  flex-direction: column;
+  flex-direction: row;
+  writing-mode: vertical-rl;
+  flex-wrap: wrap;
 }
 
-/* Est: enchères à droite, centrées verticalement */
+/* Est: enchères à droite */
 .east-bids {
-  right: 8%;
+  right: 12%;
   top: 50%;
   transform: translateY(-50%);
-  flex-direction: column;
+  flex-direction: row;
+  writing-mode: vertical-lr;
+  flex-wrap: wrap;
 }
 
+/* Cartons d'enchères réalistes - style Bridge Partner */
 .bid-card {
-  padding: 3px 6px;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-weight: bold;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  width: 32px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
   animation: bid-appear 0.3s ease-out;
   white-space: nowrap;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* Pour Ouest et Est, rotation du texte */
+.west-bids .bid-card,
+.east-bids .bid-card {
+  writing-mode: horizontal-tb;
 }
 
 @keyframes bid-appear {
   from {
     opacity: 0;
-    transform: scale(0.5);
+    transform: scale(0.5) translateY(-5px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
-/* Enchère normale (contrat) */
+/* Carton d'enchère normale (contrat) - blanc avec symbole coloré */
 .bid-card.bid-contract {
-  background: linear-gradient(to bottom, #ffffff, #f0f0f0);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f8f8 50%, #eeeeee 100%);
   color: #1a1a2e;
-  border: 1px solid #ccc;
+  border-color: #999;
 }
 
-/* Passe */
+/* Couleurs des symboles dans les enchères posées */
+.bid-card.suit-clubs { color: #228b22 !important; }
+.bid-card.suit-diamonds { color: #ff8c00 !important; }
+.bid-card.suit-hearts { color: #dc143c !important; }
+.bid-card.suit-spades { color: #1e3a8a !important; }
+.bid-card.suit-nt { 
+  color: #4b5563 !important; 
+  background: linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 50%, #d1d5db 100%);
+}
+
+/* Passe = Vert */
 .bid-card.bid-pass {
-  background: linear-gradient(to bottom, #22c55e, #16a34a);
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
   color: white;
+  border-color: #15803d;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-/* Contre */
+/* Contre = Rouge */
 .bid-card.bid-double {
-  background: linear-gradient(to bottom, #ef4444, #dc2626);
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
   color: white;
+  border-color: #b91c1c;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-/* Surcontre */
+/* Surcontre = Bleu */
 .bid-card.bid-redouble {
-  background: linear-gradient(to bottom, #3b82f6, #2563eb);
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
   color: white;
+  border-color: #1d4ed8;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
 /* ================================
@@ -2330,104 +2370,122 @@ onUnmounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES 3D COMPACTE
+   BOÎTE À ENCHÈRES RÉALISTE (style Bridge Partner)
    ================================ */
 .bidding-box-3d {
   position: absolute;
-  bottom: 5%;
-  right: 5%;
-  transform: rotateX(-8deg) scale(0.85);
+  bottom: 8%;
+  right: 8%;
+  transform: rotateX(-5deg) scale(0.9);
   z-index: 10;
   transform-style: preserve-3d;
 }
 
+/* Couvercle de la boîte - style bois vernis */
 .bidding-box-lid {
-  background: linear-gradient(to bottom, #8b4513, #654321);
-  color: #ffd700;
+  background: linear-gradient(135deg, #4a3728 0%, #2d1f15 50%, #4a3728 100%);
+  color: #d4af37;
   font-weight: bold;
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   text-align: center;
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.3rem 0.3rem 0 0;
+  padding: 4px 12px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #1a1008;
+  border-bottom: none;
   box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 -2px 5px rgba(0, 0, 0, 0.3);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  letter-spacing: 1px;
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
+/* Corps de la boîte */
 .bidding-box-content {
-  background: linear-gradient(to bottom, #2a2a3e 0%, #1a1a2e 100%);
-  border: 2px solid #654321;
+  background: linear-gradient(to bottom, #3d2b1f 0%, #2d1f15 100%);
+  border: 2px solid #1a1008;
   border-top: none;
-  border-radius: 0 0 0.3rem 0.3rem;
-  padding: 0.25rem;
+  border-radius: 0 0 4px 4px;
+  padding: 6px;
   box-shadow: 
-    0 4px 10px rgba(0, 0, 0, 0.5),
-    inset 0 0 10px rgba(0, 0, 0, 0.2);
+    0 6px 20px rgba(0, 0, 0, 0.6),
+    inset 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .bidding-box-3d .bid-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 2px;
 }
 
 .bidding-box-3d .bid-row {
   display: flex;
-  gap: 0.1rem;
+  gap: 2px;
 }
 
+/* Cartons d'enchères réalistes - style plastifié blanc */
 .bidding-box-3d .bid-btn {
-  width: 24px;
-  height: 18px;
-  border: none;
+  width: 28px;
+  height: 22px;
+  border: 1px solid #ccc;
   border-radius: 2px;
-  font-size: 0.5rem;
-  font-weight: 700;
+  font-size: 0.55rem;
+  font-weight: 800;
   cursor: pointer;
-  background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
-  color: #1a1a2e;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f5f5 50%, #e8e8e8 100%);
+  color: #000;
   transition: all 0.15s;
   box-shadow: 
-    0 1px 2px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    0 2px 3px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 #fff;
+  text-shadow: none;
 }
 
+/* Couleurs des symboles - conventions standard bridge */
+.bidding-box-3d .bid-btn.suit-clubs { 
+  color: #228b22; /* Trèfle = Vert */
+}
+.bidding-box-3d .bid-btn.suit-diamonds { 
+  color: #ff8c00; /* Carreau = Orange */
+}
+.bidding-box-3d .bid-btn.suit-hearts { 
+  color: #dc143c; /* Cœur = Rouge */
+}
+.bidding-box-3d .bid-btn.suit-spades { 
+  color: #1e3a8a; /* Pique = Bleu foncé */
+}
+.bidding-box-3d .bid-btn.suit-nt { 
+  color: #4b5563; /* SA = Gris */
+  background: linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 50%, #d1d5db 100%);
+}
+
+/* Effet survol - carton qui sort de la boîte */
 .bidding-box-3d .bid-btn:hover,
 .bidding-box-3d .bid-btn.is-hovered {
-  transform: scale(1.6) translateY(-8px);
+  transform: scale(1.8) translateY(-12px);
   z-index: 20;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  border-color: #3b82f6;
 }
 
 .bidding-box-3d .bid-btn:active {
-  transform: scale(1.2);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transform: scale(1.3) translateY(-5px);
 }
 
 .bidding-box-3d .bid-btn.is-selected {
-  background: linear-gradient(to bottom, #fbbf24, #f59e0b);
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
 }
 
-.bidding-box-3d .bid-btn.suit-clubs { color: #1a1a2e; }
-.bidding-box-3d .bid-btn.suit-diamonds { color: #ea580c; }
-.bidding-box-3d .bid-btn.suit-hearts { color: #dc2626; }
-.bidding-box-3d .bid-btn.suit-spades { color: #1a1a2e; }
-.bidding-box-3d .bid-btn.suit-nt { 
-  color: #1a1a2e;
-  background: linear-gradient(to bottom, #c4b5fd, #a78bfa);
-}
-
-/* Enchères désactivées (grisées) */
+/* Enchères désactivées */
 .bidding-box-3d .bid-btn.disabled,
 .bidding-box-3d .bid-btn:disabled {
-  background: linear-gradient(to bottom, #4a4a5a, #3a3a4a) !important;
-  color: #6a6a7a !important;
+  background: linear-gradient(180deg, #9ca3af 0%, #6b7280 100%) !important;
+  color: #4b5563 !important;
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.4;
   box-shadow: none;
+  border-color: #6b7280;
 }
 
 .bidding-box-3d .bid-btn.disabled:hover,
@@ -2436,32 +2494,45 @@ onUnmounted(() => {
   box-shadow: none !important;
 }
 
+/* Enchères spéciales - Passe, Contre, Surcontre */
 .bidding-box-3d .special-bids {
   display: flex;
-  gap: 0.1rem;
-  margin-top: 0.2rem;
-  padding-top: 0.2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 215, 0, 0.3);
 }
 
 .bidding-box-3d .bid-btn.special {
   flex: 1;
-  background: linear-gradient(to bottom, #4ade80, #22c55e);
-  color: #1a1a2e;
-  font-size: 0.45rem;
-  height: 16px;
+  height: 20px;
+  font-size: 0.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
+/* Passe = Vert */
 .bidding-box-3d .bid-btn.special:first-child {
-  background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
+  color: #fff;
+  border-color: #15803d;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 
+/* Contre = Rouge */
 .bidding-box-3d .bid-btn.special:nth-child(2) {
-  background: linear-gradient(to bottom, #f87171, #ef4444);
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+  color: #fff;
+  border-color: #b91c1c;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 
+/* Surcontre = Bleu */
 .bidding-box-3d .bid-btn.special:nth-child(3) {
-  background: linear-gradient(to bottom, #a78bfa, #8b5cf6);
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  color: #fff;
+  border-color: #1d4ed8;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 
 /* Enchères agrandies */
@@ -2702,29 +2773,31 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H discrets à droite du jeu */
+/* Points H visibles à droite des cartes */
 .hand-points-right {
   position: absolute;
-  right: -50px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: -60px;
+  bottom: 30px;
   display: flex;
-  align-items: baseline;
-  gap: 2px;
-  opacity: 0.7;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .hand-points-right .points-value {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #fbbf24;
   line-height: 1;
 }
 
 .hand-points-right .points-label {
-  font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 500;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
 }
 
 /* Ancien style (compatibilité) */
