@@ -1005,13 +1005,19 @@ function subscribeToTable(tableId) {
     .subscribe()
 }
 
-// Vérifier si une carte est jouable
+// Vérifier si une carte est jouable (pour le clic)
 function isCardPlayable(card) {
   // Pas pendant les enchères
   if (currentPhase.value !== 'playing') return false
   // Pas mon tour
   if (currentTurn.value !== myPosition.value) return false
   
+  // Vérifier si la carte respecte la règle de fourniture
+  return isCardValidToPlay(card)
+}
+
+// Vérifier si une carte respecte les règles (couleur demandée)
+function isCardValidToPlay(card) {
   // Déterminer la couleur d'entame
   const playOrder = getPlayOrder()
   let leadSuit = null
@@ -1031,6 +1037,16 @@ function isCardPlayable(card) {
   // Si le joueur n'a pas la couleur demandée, toutes ses cartes sont jouables
   const hasLeadSuit = myCards.value.some(c => c.suit === leadSuit)
   return !hasLeadSuit
+}
+
+// Vérifier si une carte doit être grisée (seulement quand c'est MON tour et carte invalide)
+function shouldCardBeGreyed(card) {
+  // Pas de grisage pendant les enchères
+  if (currentPhase.value !== 'playing') return false
+  // Pas de grisage si ce n'est pas mon tour (je peux réfléchir)
+  if (currentTurn.value !== myPosition.value) return false
+  // Griser seulement si la carte n'est pas valide à jouer
+  return !isCardValidToPlay(card)
 }
 
 // Fonctions de jeu
@@ -1533,8 +1549,8 @@ onUnmounted(() => {
               class="card-perspective"
               :class="{ 
                 'suit-red': card.suit === '♥' || card.suit === '♦',
-                'can-play': currentPhase === 'playing' && isCardPlayable(card),
-                'not-playable': currentPhase === 'playing' && !isCardPlayable(card)
+                'can-play': isCardPlayable(card),
+                'not-playable': shouldCardBeGreyed(card)
               }"
               :style="getCardArcStyle(index, myCards.length)"
               @click="playCard(card)"
