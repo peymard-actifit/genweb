@@ -83,6 +83,20 @@ CREATE TABLE IF NOT EXISTS bridge_chat (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Table des sessions de jeu (historique de toutes les donnes d'une table)
+CREATE TABLE IF NOT EXISTS bridge_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_id UUID REFERENCES bridge_tables(id) ON DELETE CASCADE,
+  current_deal_number INTEGER DEFAULT 1,
+  total_deals_played INTEGER DEFAULT 0,
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  ended_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(table_id)
+);
+
+-- Ajout de deal_number à bridge_games pour traçabilité
+ALTER TABLE bridge_games ADD COLUMN IF NOT EXISTS deal_number INTEGER DEFAULT 1;
+
 -- ============================================================
 -- INDEX POUR PERFORMANCES
 -- ============================================================
@@ -94,6 +108,8 @@ CREATE INDEX IF NOT EXISTS idx_bridge_hands_game ON bridge_hands(game_id);
 CREATE INDEX IF NOT EXISTS idx_bridge_bids_game ON bridge_bids(game_id);
 CREATE INDEX IF NOT EXISTS idx_bridge_tricks_game ON bridge_tricks(game_id);
 CREATE INDEX IF NOT EXISTS idx_bridge_chat_table ON bridge_chat(table_id);
+CREATE INDEX IF NOT EXISTS idx_bridge_sessions_table ON bridge_sessions(table_id);
+CREATE INDEX IF NOT EXISTS idx_bridge_games_deal ON bridge_games(table_id, deal_number);
 
 -- ============================================================
 -- ROW LEVEL SECURITY (RLS)
@@ -105,6 +121,7 @@ ALTER TABLE bridge_hands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bridge_bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bridge_tricks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bridge_chat ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bridge_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Policies pour bridge_tables (tout le monde peut voir les tables d'un site publié)
 DROP POLICY IF EXISTS "Anyone can view tables" ON bridge_tables;
@@ -205,6 +222,21 @@ DROP POLICY IF EXISTS "Authenticated can send messages" ON bridge_chat;
 CREATE POLICY "Authenticated can send messages" ON bridge_chat
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+-- Policies pour bridge_sessions
+DROP POLICY IF EXISTS "Table players can view sessions" ON bridge_sessions;
+CREATE POLICY "Table players can view sessions" ON bridge_sessions
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Table players can manage sessions" ON bridge_sessions;
+CREATE POLICY "Table players can manage sessions" ON bridge_sessions
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM bridge_players 
+      WHERE bridge_players.table_id = bridge_sessions.table_id 
+      AND bridge_players.user_id = auth.uid()
+    )
+  );
+
 -- ============================================================
 -- TRIGGERS
 -- ============================================================
@@ -251,6 +283,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   RAISE NOTICE '✅ Schéma Bridge Genweb créé avec succès !';
-  RAISE NOTICE 'Tables: bridge_tables, bridge_players, bridge_games, bridge_hands, bridge_bids, bridge_tricks, bridge_chat';
+  RAISE NOTICE 'Tables: bridge_tables, bridge_players, bridge_games, bridge_hands, bridge_bids, bridge_tricks, bridge_chat, bridge_sessions';
   RAISE NOTICE 'RLS activé sur toutes les tables';
+  RAISE NOTICE 'Historique complet des donnes activé';
 END $$;
