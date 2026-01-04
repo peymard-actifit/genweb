@@ -77,6 +77,144 @@ const tricksWonNS = ref(0)
 const tricksWonEW = ref(0)
 const tricksPlayed = ref(0)
 
+// Auto-save
+const lastSaveTime = ref(null)
+const isSaving = ref(false)
+
+// Calcul des points d'une main
+function calculateHandPoints(hand) {
+  if (!hand || hand.length === 0) return 0
+  
+  let points = 0
+  const suitCounts = { '♠': 0, '♥': 0, '♦': 0, '♣': 0 }
+  
+  hand.forEach(card => {
+    // Points d'honneurs
+    if (card.rank === 'A') points += 4
+    else if (card.rank === 'K') points += 3
+    else if (card.rank === 'Q') points += 2
+    else if (card.rank === 'J') points += 1
+    
+    suitCounts[card.suit]++
+  })
+  
+  // Points de distribution (chicane = 3, singleton = 2, doubleton = 1)
+  for (const count of Object.values(suitCounts)) {
+    if (count === 0) points += 3
+    else if (count === 1) points += 2
+    else if (count === 2) points += 1
+  }
+  
+  return points
+}
+
+// Points du joueur connecté
+const myHandPoints = computed(() => calculateHandPoints(myCards.value))
+
+// Style pour l'arc de cercle des cartes
+function getCardArcStyle(index, totalCards) {
+  const middleIndex = (totalCards - 1) / 2
+  const offset = index - middleIndex
+  
+  // Rotation pour créer l'arc (plus prononcée aux extrémités)
+  const rotation = offset * 4 // degrés
+  
+  // Translation verticale pour l'arc
+  const verticalOffset = Math.abs(offset) * Math.abs(offset) * 2 // pixels
+  
+  // Translation horizontale (espacement)
+  const horizontalOffset = offset * 45 // pixels
+  
+  // Z-index pour le chevauchement
+  const zIndex = index
+  
+  return {
+    '--card-rotation': `${rotation}deg`,
+    '--card-translate-y': `${verticalOffset}px`,
+    '--card-translate-x': `${horizontalOffset}px`,
+    '--card-z-index': zIndex,
+    'z-index': zIndex
+  }
+}
+
+// Séquence d'enchères organisée par rangées (O, N, E, S)
+const bidSequenceRows = computed(() => {
+  const rows = []
+  const positionOrder = ['W', 'N', 'E', 'S']
+  const dealerIndex = positionOrder.indexOf(currentDealer.value)
+  
+  // Réorganiser pour commencer par le donneur
+  const orderedPositions = []
+  for (let i = 0; i < 4; i++) {
+    orderedPositions.push(positionOrder[(dealerIndex + i) % 4])
+  }
+  
+  // Créer les rangées
+  let currentRow = ['-', '-', '-', '-']
+  let startIndex = dealerIndex
+  
+  bids.value.forEach((bid, index) => {
+    const posIndex = positionOrder.indexOf(bid.position)
+    currentRow[posIndex] = bid.bid
+    
+    // Nouvelle ligne après que S ait joué (ou après 4 enchères)
+    if (bid.position === 'S' || (index > 0 && (index + 1 - startIndex) % 4 === 0)) {
+      rows.push([...currentRow])
+      currentRow = ['-', '-', '-', '-']
+    }
+  })
+  
+  // Ajouter la dernière rangée si non vide
+  if (currentRow.some(b => b !== '-')) {
+    rows.push(currentRow)
+  }
+  
+  return rows
+})
+
+// Auto-save vers la base de données
+async function autoSave() {
+  if (isSaving.value || !currentTable.value) return
+  
+  isSaving.value = true
+  try {
+    const gameState = {
+      table_id: currentTable.value.id,
+      deal_number: currentDealNumber.value,
+      phase: currentPhase.value,
+      dealer: currentDealer.value,
+      current_turn: currentTurn.value,
+      bids: JSON.stringify(bids.value),
+      contract: contract.value,
+      declarer: declarer.value,
+      all_hands: JSON.stringify(allHands.value),
+      current_trick: JSON.stringify(currentTrickCards.value),
+      tricks_ns: tricksWonNS.value,
+      tricks_ew: tricksWonEW.value,
+      updated_at: new Date().toISOString()
+    }
+    
+    // Upsert dans bridge_games
+    const { error } = await supabase
+      .from('bridge_games')
+      .upsert(gameState, { onConflict: 'table_id,deal_number' })
+    
+    if (!error) {
+      lastSaveTime.value = new Date()
+      console.log('[AutoSave] Sauvegarde réussie')
+    }
+  } catch (err) {
+    console.error('[AutoSave] Erreur:', err)
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// Déclencher l'auto-save après chaque action
+watch([bids, currentTrickCards, tricksWonNS, tricksWonEW, currentPhase], () => {
+  autoSave()
+}, { deep: true })
+
 // Rotation des joueurs (sens horaire)
 const nextPlayer = { 'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N' }
 const previousPlayer = { 'N': 'W', 'E': 'N', 'S': 'E', 'W': 'S' }
@@ -919,28 +1057,44 @@ onMounted(() => {
     
     <!-- Vue du tapis de bridge plein écran -->
     <div v-else class="bridge-fullscreen">
-      <!-- Header compact avec numéro de donne et contrat -->
+      <!-- Header compact avec numéro de donne, contrat et séquence -->
       <div class="table-header">
         <div class="deal-info">
           <span class="deal-number">Donne {{ currentDealNumber }}</span>
-          <span class="dealer-info">Donneur: {{ currentDealer }}</span>
-          <span v-if="contract" class="contract-info">
-            Contrat: <strong>{{ contract }}</strong>
+          <span v-if="contract" class="contract-display">
+            <strong>{{ contract }}</strong>
             <span v-if="declarer"> par {{ declarer }}</span>
           </span>
+          <!-- Séquence d'enchères -->
+          <div v-if="bids.length > 0" class="bid-sequence">
+            <div class="bid-sequence-header">
+              <span>O</span><span>N</span><span>E</span><span>S</span>
+            </div>
+            <div class="bid-sequence-row" v-for="(row, idx) in bidSequenceRows" :key="idx">
+              <span v-for="(bid, bidIdx) in row" :key="bidIdx" 
+                    class="bid-item" 
+                    :class="{ 'bid-pass': bid === 'Passe', 'bid-contract': bid && bid !== 'Passe' && bid !== '-' }">
+                {{ bid || '-' }}
+              </span>
+            </div>
+          </div>
         </div>
-        <button class="btn-leave" @click="leaveTable">← Quitter</button>
-        <h3>{{ currentTable.name }}</h3>
-        <span class="phase-badge" :class="{ 
-          'phase-bidding': currentPhase === 'bidding',
-          'phase-playing': currentPhase === 'playing',
-          'phase-finished': currentPhase === 'finished'
-        }">
-          {{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : currentPhase === 'playing' ? 'Jeu de la carte' : 'Fin du coup' }}
-        </span>
-        <span v-if="aiThinking" class="ai-thinking">
-          🤖 {{ currentTurn }} réfléchit...
-        </span>
+        
+        <div class="header-right">
+          <button class="btn-leave" @click="leaveTable">← Quitter</button>
+          <h3>{{ currentTable.name }}</h3>
+          <span class="phase-badge" :class="{ 
+            'phase-bidding': currentPhase === 'bidding',
+            'phase-playing': currentPhase === 'playing',
+            'phase-finished': currentPhase === 'finished'
+          }">
+            {{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : currentPhase === 'playing' ? 'Jeu' : 'Fin' }}
+          </span>
+          <span v-if="aiThinking" class="ai-thinking">🤖 {{ currentTurn }}...</span>
+          <span v-if="lastSaveTime" class="save-indicator" :class="{ saving: isSaving }">
+            {{ isSaving ? '💾...' : '✓' }}
+          </span>
+        </div>
       </div>
       
       <!-- Zone vidéo NORD (haut de l'écran) -->
@@ -1104,21 +1258,23 @@ onMounted(() => {
             </div>
           </div>
           
-          <!-- Boîte à enchères (seulement pendant les enchères) -->
-          <div v-if="currentPhase === 'bidding'" class="bidding-box-on-table">
-            <div class="bid-grid">
-              <div v-for="level in bidLevels" :key="level" class="bid-row">
-                <button 
-                  v-for="suit in bidSuits" 
-                  :key="`${level}${suit}`"
-                  class="bid-btn"
-                  :class="{ 
-                    'suit-clubs': suit === '♣', 
-                    'suit-diamonds': suit === '♦', 
-                    'suit-hearts': suit === '♥', 
-                    'suit-spades': suit === '♠', 
-                    'suit-nt': suit === 'SA',
-                    'is-hovered': hoveredBid === `${level}${suit}`,
+          <!-- Boîte à enchères réaliste (seulement pendant les enchères) -->
+          <div v-if="currentPhase === 'bidding'" class="bidding-box-3d">
+            <div class="bidding-box-lid">Enchères</div>
+            <div class="bidding-box-content">
+              <div class="bid-grid">
+                <div v-for="level in bidLevels" :key="level" class="bid-row">
+                  <button 
+                    v-for="suit in bidSuits" 
+                    :key="`${level}${suit}`"
+                    class="bid-btn"
+                    :class="{ 
+                      'suit-clubs': suit === '♣', 
+                      'suit-diamonds': suit === '♦', 
+                      'suit-hearts': suit === '♥', 
+                      'suit-spades': suit === '♠', 
+                      'suit-nt': suit === 'SA',
+                      'is-hovered': hoveredBid === `${level}${suit}`,
                     'is-selected': selectedBids.includes(`${level}${suit}`)
                   }"
                   @mouseenter="hoverBid(`${level}${suit}`)"
@@ -1146,6 +1302,7 @@ onMounted(() => {
               >
                 {{ bid }}
               </button>
+            </div>
             </div>
           </div>
         </div>
@@ -1185,20 +1342,30 @@ onMounted(() => {
           </div>
         </div>
         
-        <!-- Cartes du joueur (centre) -->
+        <!-- Cartes du joueur (centre) - Arc de cercle en perspective -->
         <div class="my-hand-zone">
-          <div class="my-hand">
+          <div class="my-hand-arc">
             <div 
               v-for="(card, index) in myCards" 
               :key="card.id"
-              class="card"
-              :class="{ 'suit-red': card.suit === '♥' || card.suit === '♦' }"
-              :style="{ '--card-index': index }"
+              class="card-perspective"
+              :class="{ 
+                'suit-red': card.suit === '♥' || card.suit === '♦',
+                'can-play': currentTurn === myPosition && currentPhase === 'playing'
+              }"
+              :style="getCardArcStyle(index, myCards.length)"
               @click="playCard(card)"
             >
-              <span class="card-rank">{{ card.rank }}</span>
-              <span class="card-suit">{{ card.suit }}</span>
+              <div class="card-face">
+                <span class="card-rank">{{ card.rank }}</span>
+                <span class="card-suit">{{ card.suit }}</span>
+              </div>
             </div>
+          </div>
+          <!-- Points du jeu -->
+          <div class="hand-points">
+            <div class="points-value">{{ myHandPoints }}</div>
+            <div class="points-label">pts</div>
           </div>
         </div>
         
@@ -1420,16 +1587,83 @@ onMounted(() => {
 .table-header {
   grid-area: header;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
 .table-header h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+/* Séquence d'enchères */
+.bid-sequence {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  margin-top: 0.25rem;
+}
+
+.bid-sequence-header {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 0.15rem;
+  margin-bottom: 0.15rem;
+}
+
+.bid-sequence-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.bid-item {
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.2rem;
+}
+
+.bid-item.bid-pass {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.bid-item.bid-contract {
+  background: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.save-indicator {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  background: rgba(74, 222, 128, 0.2);
+  border-radius: 0.25rem;
+  color: #4ade80;
+}
+
+.save-indicator.saving {
+  animation: save-pulse 0.5s infinite;
+}
+
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .deal-info {
@@ -1632,7 +1866,7 @@ onMounted(() => {
 }
 
 /* ================================
-   TAPIS CENTRAL
+   TAPIS CENTRAL - PERSPECTIVE 3D
    ================================ */
 .table-center {
   grid-area: center;
@@ -1640,19 +1874,38 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  perspective: 1000px;
 }
 
 .table-felt {
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
   aspect-ratio: 1;
-  background: #2d5a27;
+  background: 
+    radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 1rem;
   box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.5),
-    inset 0 0 60px rgba(0, 0, 0, 0.3);
-  border: 10px solid #5c3d2e;
+    0 30px 60px rgba(0, 0, 0, 0.6),
+    0 10px 20px rgba(0, 0, 0, 0.4),
+    inset 0 0 80px rgba(0, 0, 0, 0.4),
+    inset 0 -20px 40px rgba(0, 0, 0, 0.3);
+  border: 12px solid #5c3d2e;
+  border-bottom-width: 20px;
   position: relative;
+  transform: rotateX(15deg);
+  transform-style: preserve-3d;
+}
+
+/* Effet de reflet sur le bord de la table */
+.table-felt::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: -12px;
+  right: -12px;
+  height: 20px;
+  background: linear-gradient(to bottom, #8b6914, #5c3d2e);
+  border-radius: 1rem 1rem 0 0;
 }
 
 
@@ -1875,72 +2128,121 @@ onMounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES SUR LA TABLE
+   BOÎTE À ENCHÈRES 3D RÉALISTE
    ================================ */
-.bidding-box-on-table {
+.bidding-box-3d {
   position: absolute;
-  bottom: 10%;
+  bottom: 8%;
   left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  transform: translateX(-50%) rotateX(-5deg);
   z-index: 10;
+  transform-style: preserve-3d;
 }
 
-.bidding-box-on-table .bid-grid {
+.bidding-box-lid {
+  background: linear-gradient(to bottom, #8b4513, #654321);
+  color: #ffd700;
+  font-weight: bold;
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 0.3rem 1rem;
+  border-radius: 0.5rem 0.5rem 0 0;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 -2px 5px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  letter-spacing: 1px;
+}
+
+.bidding-box-content {
+  background: linear-gradient(to bottom, #1a1a2e 0%, #0d0d1a 100%);
+  border: 3px solid #654321;
+  border-top: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+  padding: 0.5rem;
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.6),
+    inset 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.bidding-box-3d .bid-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
-.bidding-box-on-table .bid-row {
+.bidding-box-3d .bid-row {
   display: flex;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
-.bidding-box-on-table .bid-btn {
-  width: 32px;
-  height: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-weight: 600;
+.bidding-box-3d .bid-btn {
+  width: 34px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
+  color: #1a1a2e;
   transition: all 0.15s;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
-.bidding-box-on-table .bid-btn:hover,
-.bidding-box-on-table .bid-btn.is-hovered {
-  transform: scale(1.3);
+.bidding-box-3d .bid-btn:hover,
+.bidding-box-3d .bid-btn.is-hovered {
+  transform: scale(1.4) translateY(-5px);
   z-index: 20;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
-.bidding-box-on-table .bid-btn.is-selected {
-  background: rgba(251, 191, 36, 0.4);
-  border-color: #fbbf24;
+.bidding-box-3d .bid-btn:active {
+  transform: scale(1.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-.bidding-box-on-table .bid-btn.suit-clubs { color: #22c55e; }
-.bidding-box-on-table .bid-btn.suit-diamonds { color: #f97316; }
-.bidding-box-on-table .bid-btn.suit-hearts { color: #ef4444; }
-.bidding-box-on-table .bid-btn.suit-spades { color: #3b82f6; }
-.bidding-box-on-table .bid-btn.suit-nt { color: #a855f7; }
+.bidding-box-3d .bid-btn.is-selected {
+  background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
 
-.bidding-box-on-table .special-bids {
+.bidding-box-3d .bid-btn.suit-clubs { color: #166534; }
+.bidding-box-3d .bid-btn.suit-diamonds { color: #ea580c; }
+.bidding-box-3d .bid-btn.suit-hearts { color: #dc2626; }
+.bidding-box-3d .bid-btn.suit-spades { color: #1e3a8a; }
+.bidding-box-3d .bid-btn.suit-nt { 
+  color: #1a1a2e;
+  background: linear-gradient(to bottom, #c4b5fd, #a78bfa);
+}
+
+.bidding-box-3d .special-bids {
   display: flex;
-  gap: 0.15rem;
-  margin-top: 0.3rem;
+  gap: 0.2rem;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.bidding-box-on-table .bid-btn.special {
+.bidding-box-3d .bid-btn.special {
   flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 0.55rem;
+  background: linear-gradient(to bottom, #4ade80, #22c55e);
+  color: #1a1a2e;
+  font-size: 0.6rem;
+}
+
+.bidding-box-3d .bid-btn.special:first-child {
+  background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+}
+
+.bidding-box-3d .bid-btn.special:nth-child(2) {
+  background: linear-gradient(to bottom, #f87171, #ef4444);
+}
+
+.bidding-box-3d .bid-btn.special:nth-child(3) {
+  background: linear-gradient(to bottom, #a78bfa, #8b5cf6);
 }
 
 /* Enchères agrandies */
@@ -2075,18 +2377,119 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* Zone des cartes du joueur */
+/* Zone des cartes du joueur - Arc de cercle en perspective */
 .my-hand-zone {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  gap: 1rem;
+  perspective: 800px;
+  padding-bottom: 1rem;
 }
 
-.my-hand {
+.my-hand-arc {
   display: flex;
   justify-content: center;
+  align-items: flex-end;
+  position: relative;
+  height: 140px;
+  transform-style: preserve-3d;
 }
 
+.card-perspective {
+  width: 70px;
+  height: 100px;
+  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+  border-radius: 8px;
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  position: absolute;
+  transform-origin: bottom center;
+  transform: 
+    translateX(var(--card-translate-x, 0))
+    translateY(var(--card-translate-y, 0))
+    rotateZ(var(--card-rotation, 0deg))
+    rotateX(-5deg);
+}
+
+.card-perspective:hover {
+  transform: 
+    translateX(var(--card-translate-x, 0))
+    translateY(-30px)
+    rotateZ(0deg)
+    rotateX(0deg)
+    scale(1.15);
+  z-index: 100 !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+}
+
+.card-perspective.can-play {
+  cursor: pointer;
+}
+
+.card-perspective.can-play:hover {
+  box-shadow: 0 15px 35px rgba(74, 222, 128, 0.5), 0 0 20px rgba(74, 222, 128, 0.3);
+}
+
+.card-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.card-perspective .card-rank {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1a1a2e;
+  line-height: 1;
+}
+
+.card-perspective .card-suit {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.card-perspective.suit-red .card-rank,
+.card-perspective.suit-red .card-suit {
+  color: #dc2626;
+}
+
+/* Points du jeu */
+.hand-points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.3));
+  border: 2px solid #fbbf24;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  min-width: 50px;
+}
+
+.points-value {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #fbbf24;
+  line-height: 1;
+}
+
+.points-label {
+  font-size: 0.7rem;
+  color: rgba(251, 191, 36, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Ancien style pour compatibilité */
 .card {
   width: 60px;
   height: 85px;
