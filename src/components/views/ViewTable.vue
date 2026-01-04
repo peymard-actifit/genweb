@@ -750,6 +750,53 @@ const bidLevels = [1, 2, 3, 4, 5, 6, 7]
 const bidSuits = ['♣', '♦', '♥', '♠', 'SA']
 const specialBids = ['Passe', 'Contre', 'Surcontre']
 
+// Ordre des couleurs pour comparaison
+const suitOrder = { '♣': 0, '♦': 1, '♥': 2, '♠': 3, 'SA': 4 }
+
+// Convertir une enchère en valeur numérique pour comparaison
+function getBidValue(bid) {
+  if (!bid || bid === 'Passe' || bid === 'Contre' || bid === 'Surcontre') return -1
+  const level = parseInt(bid[0])
+  const suit = bid.substring(1)
+  return level * 10 + suitOrder[suit]
+}
+
+// Vérifier si une enchère normale est valide
+function isBidValid(level, suit) {
+  const bidStr = `${level}${suit}`
+  const bidValue = getBidValue(bidStr)
+  
+  // Si pas d'enchère précédente, toute enchère est valide
+  if (!lastRealBid.value) return true
+  
+  const lastBidValue = getBidValue(lastRealBid.value.bid)
+  return bidValue > lastBidValue
+}
+
+// Vérifier si une enchère spéciale est valide
+function isSpecialBidValid(bid) {
+  // Passe est toujours possible
+  if (bid === 'Passe') return true
+  
+  // Contre: possible seulement si l'adversaire a fait la dernière enchère et pas déjà contré
+  if (bid === 'Contre') {
+    if (!lastRealBid.value || isDoubled.value || isRedoubled.value) return false
+    const lastBidderCamp = (lastRealBid.value.position === 'N' || lastRealBid.value.position === 'S') ? 'NS' : 'EW'
+    const myCamp = (myPosition.value === 'N' || myPosition.value === 'S') ? 'NS' : 'EW'
+    return lastBidderCamp !== myCamp
+  }
+  
+  // Surcontre: possible seulement si on a été contré
+  if (bid === 'Surcontre') {
+    if (!isDoubled.value || isRedoubled.value) return false
+    const lastBidderCamp = (lastRealBid.value.position === 'N' || lastRealBid.value.position === 'S') ? 'NS' : 'EW'
+    const myCamp = (myPosition.value === 'N' || myPosition.value === 'S') ? 'NS' : 'EW'
+    return lastBidderCamp === myCamp
+  }
+  
+  return false
+}
+
 // Fonctions de gestion des tables
 async function fetchTables() {
   loading.value = true
@@ -1310,35 +1357,39 @@ onUnmounted(() => {
                       'suit-hearts': suit === '♥', 
                       'suit-spades': suit === '♠', 
                       'suit-nt': suit === 'SA',
-                      'is-hovered': hoveredBid === `${level}${suit}`,
-                    'is-selected': selectedBids.includes(`${level}${suit}`)
+                      'is-hovered': hoveredBid === `${level}${suit}` && isBidValid(level, suit),
+                      'is-selected': selectedBids.includes(`${level}${suit}`),
+                      'disabled': !isBidValid(level, suit)
+                    }"
+                    :disabled="!isBidValid(level, suit)"
+                    @mouseenter="isBidValid(level, suit) && hoverBid(`${level}${suit}`)"
+                    @mouseleave="unhoverBid()"
+                    @click="isBidValid(level, suit) && makeBid(`${level}${suit}`)"
+                    @contextmenu.prevent="isBidValid(level, suit) && selectBidForComparison(`${level}${suit}`, $event)"
+                  >
+                    {{ level }}{{ suit }}
+                  </button>
+                </div>
+              </div>
+              <div class="special-bids">
+                <button 
+                  v-for="bid in specialBids" 
+                  :key="bid" 
+                  class="bid-btn special"
+                  :class="{ 
+                    'is-hovered': hoveredBid === bid && isSpecialBidValid(bid),
+                    'is-selected': selectedBids.includes(bid),
+                    'disabled': !isSpecialBidValid(bid)
                   }"
-                  @mouseenter="hoverBid(`${level}${suit}`)"
+                  :disabled="!isSpecialBidValid(bid)"
+                  @mouseenter="isSpecialBidValid(bid) && hoverBid(bid)"
                   @mouseleave="unhoverBid()"
-                  @click="makeBid(`${level}${suit}`)"
-                  @contextmenu.prevent="selectBidForComparison(`${level}${suit}`, $event)"
+                  @click="isSpecialBidValid(bid) && makeBid(bid)"
+                  @contextmenu.prevent="isSpecialBidValid(bid) && selectBidForComparison(bid, $event)"
                 >
-                  {{ level }}{{ suit }}
+                  {{ bid }}
                 </button>
               </div>
-            </div>
-            <div class="special-bids">
-              <button 
-                v-for="bid in specialBids" 
-                :key="bid" 
-                class="bid-btn special"
-                :class="{ 
-                  'is-hovered': hoveredBid === bid,
-                  'is-selected': selectedBids.includes(bid)
-                }"
-                @mouseenter="hoverBid(bid)"
-                @mouseleave="unhoverBid()"
-                @click="makeBid(bid)"
-                @contextmenu.prevent="selectBidForComparison(bid, $event)"
-              >
-                {{ bid }}
-              </button>
-            </div>
             </div>
           </div>
         </div>
@@ -2276,6 +2327,22 @@ onUnmounted(() => {
 .bidding-box-3d .bid-btn.suit-nt { 
   color: #1a1a2e;
   background: linear-gradient(to bottom, #c4b5fd, #a78bfa);
+}
+
+/* Enchères désactivées (grisées) */
+.bidding-box-3d .bid-btn.disabled,
+.bidding-box-3d .bid-btn:disabled {
+  background: linear-gradient(to bottom, #4a4a5a, #3a3a4a) !important;
+  color: #6a6a7a !important;
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.bidding-box-3d .bid-btn.disabled:hover,
+.bidding-box-3d .bid-btn:disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .bidding-box-3d .special-bids {
