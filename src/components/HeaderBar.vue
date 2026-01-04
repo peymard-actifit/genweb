@@ -25,10 +25,8 @@ const showAdminModal = ref(false)
 const adminCode = ref('')
 const adminError = ref('')
 
-// Version du commit
-const commitVersion = computed(() => {
-  return import.meta.env.VITE_COMMIT_VERSION || 'v0.2.4'
-})
+// Version de l'application (définie dans vite.config.js depuis package.json)
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?.?.?'
 
 function toggleUserMenu() {
   showUserMenu.value = !showUserMenu.value
@@ -75,7 +73,7 @@ async function logout() {
   <header class="header-bar">
     <!-- Gauche: Version -->
     <div class="header-left">
-      <span class="version-badge">{{ commitVersion }}</span>
+      <span class="version-badge">v{{ appVersion }}</span>
     </div>
 
     <!-- Centre: Titre -->
