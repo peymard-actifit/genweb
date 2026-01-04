@@ -2148,7 +2148,7 @@ onUnmounted(() => {
 
 /* Nord: enchères entre le bord et la lettre N */
 .north-bids {
-  top: 2%;
+  top: 3%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
@@ -2156,38 +2156,40 @@ onUnmounted(() => {
 
 /* Sud: enchères entre le bord et la zone joueur */
 .south-bids {
-  bottom: 2%;
+  bottom: 3%;
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
 }
 
-/* Ouest: enchères entre le bord et la lettre O */
+/* Ouest: enchères le long du bord gauche (texte vers le joueur O) */
 .west-bids {
-  left: 2%;
+  left: 3%;
   top: 50%;
-  transform: translateY(-50%);
-  flex-direction: column;
+  transform: translateY(-50%) rotate(-90deg);
+  flex-direction: row;
+  transform-origin: center center;
 }
 
-/* Est: enchères entre le bord et la lettre E */
+/* Est: enchères le long du bord droit (texte vers le joueur E) */
 .east-bids {
-  right: 2%;
+  right: 3%;
   top: 50%;
-  transform: translateY(-50%);
-  flex-direction: column;
+  transform: translateY(-50%) rotate(90deg);
+  flex-direction: row;
+  transform-origin: center center;
 }
 
-/* Cartons d'enchères réalistes - style Bridge Partner - GRANDS et LISIBLES */
+/* Cartons d'enchères - GRANDS et LISIBLES */
 .bid-card {
-  width: 52px;
-  height: 38px;
+  width: 48px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 1.2rem;
+  font-weight: 900;
   box-shadow: 
     0 3px 8px rgba(0, 0, 0, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -2196,10 +2198,10 @@ onUnmounted(() => {
   border: 2px solid rgba(0, 0, 0, 0.3);
 }
 
-/* Cartons O et E en colonne */
+/* Espacement des cartons */
 .west-bids .bid-card,
 .east-bids .bid-card {
-  margin: 1px 0;
+  margin: 0 2px;
 }
 
 @keyframes bid-appear {
@@ -2449,15 +2451,15 @@ onUnmounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES - Très petite, à DROITE sur la table
+   BOÎTE À ENCHÈRES - Très petite, à DROITE de la table
    ================================ */
 .bidding-box-3d {
-  position: fixed;
-  bottom: 200px;
-  right: 120px;
-  transform: scale(0.55);
+  position: absolute;
+  bottom: 5%;
+  right: 2%;
+  transform: scale(0.4);
   transform-origin: bottom right;
-  z-index: 100;
+  z-index: 50;
 }
 
 /* Couvercle de la boîte - style bois vernis */
@@ -2675,12 +2677,12 @@ onUnmounted(() => {
 .bottom-zone {
   grid-area: bottom;
   display: grid;
-  grid-template-columns: 220px 1fr 160px;
-  gap: 0.75rem;
+  grid-template-columns: 180px auto 1fr 140px;
+  gap: 1rem;
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.3);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  max-height: 160px;
+  align-items: center;
 }
 
 /* Chat Panel */
@@ -2872,28 +2874,27 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H au CENTRE entre chat et cartes */
+/* Points H au CENTRE entre chat et cartes - SANS bordure */
 .hand-points-center {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.85);
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 2px solid #fbbf24;
-  margin-right: 20px;
+  gap: 2px;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .hand-points-center .points-value {
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: bold;
   color: #fbbf24;
   line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 .hand-points-center .points-label {
-  font-size: 0.9rem;
-  color: #fbbf24;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
   font-weight: 600;
 }
 
