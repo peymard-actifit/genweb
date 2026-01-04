@@ -787,6 +787,14 @@ function isSpecialBidValid(bid) {
   return false
 }
 
+// Classe CSS pour une enchère
+function getBidClass(bid) {
+  if (bid === 'Passe') return 'bid-pass'
+  if (bid === 'Contre') return 'bid-double'
+  if (bid === 'Surcontre') return 'bid-redouble'
+  return 'bid-contract'
+}
+
 // Fonctions de gestion des tables
 async function fetchTables() {
   loading.value = true
@@ -1238,24 +1246,51 @@ onUnmounted(() => {
           <span class="table-position-label pos-west">O</span>
           <span class="table-position-label pos-east">E</span>
           
-          <!-- Enchères posées sur la table (pendant les enchères) -->
-          <div v-if="currentPhase === 'bidding' && bids.length > 0" class="bids-on-table">
-            <div 
-              v-for="(bidItem, index) in bids" 
-              :key="index"
-              class="bid-card"
-              :class="[
-                `bid-position-${bidItem.position}`,
-                { 
-                  'bid-pass': bidItem.bid === 'Passe',
-                  'bid-double': bidItem.bid === 'Contre',
-                  'bid-redouble': bidItem.bid === 'Surcontre',
-                  'bid-contract': bidItem.bid !== 'Passe' && bidItem.bid !== 'Contre' && bidItem.bid !== 'Surcontre'
-                }
-              ]"
-              :style="{ '--bid-index': index }"
-            >
-              <span class="bid-text">{{ bidItem.bid }}</span>
+          <!-- Enchères posées DEVANT chaque joueur (comme au vrai bridge) -->
+          <div v-if="currentPhase === 'bidding'" class="bidding-areas">
+            <!-- Zone enchères Nord -->
+            <div class="player-bids north-bids">
+              <div 
+                v-for="(bidItem, index) in bids.filter(b => b.position === 'N')" 
+                :key="'N-' + index"
+                class="bid-card"
+                :class="getBidClass(bidItem.bid)"
+              >
+                {{ bidItem.bid }}
+              </div>
+            </div>
+            <!-- Zone enchères Ouest -->
+            <div class="player-bids west-bids">
+              <div 
+                v-for="(bidItem, index) in bids.filter(b => b.position === 'W')" 
+                :key="'W-' + index"
+                class="bid-card"
+                :class="getBidClass(bidItem.bid)"
+              >
+                {{ bidItem.bid }}
+              </div>
+            </div>
+            <!-- Zone enchères Est -->
+            <div class="player-bids east-bids">
+              <div 
+                v-for="(bidItem, index) in bids.filter(b => b.position === 'E')" 
+                :key="'E-' + index"
+                class="bid-card"
+                :class="getBidClass(bidItem.bid)"
+              >
+                {{ bidItem.bid }}
+              </div>
+            </div>
+            <!-- Zone enchères Sud (joueur connecté) -->
+            <div class="player-bids south-bids">
+              <div 
+                v-for="(bidItem, index) in bids.filter(b => b.position === 'S')" 
+                :key="'S-' + index"
+                class="bid-card"
+                :class="getBidClass(bidItem.bid)"
+              >
+                {{ bidItem.bid }}
+              </div>
             </div>
           </div>
           
@@ -2017,39 +2052,72 @@ onUnmounted(() => {
 }
 
 /* ================================
-   ENCHÈRES POSÉES SUR LA TABLE
+   ENCHÈRES DEVANT CHAQUE JOUEUR (comme au vrai bridge)
    ================================ */
-.bids-on-table {
+.bidding-areas {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  max-width: 80%;
+  inset: 0;
+  pointer-events: none;
   z-index: 5;
 }
 
+.player-bids {
+  position: absolute;
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+}
+
+/* Nord: enchères en haut, centrées horizontalement */
+.north-bids {
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: row;
+}
+
+/* Sud: enchères en bas, centrées horizontalement */
+.south-bids {
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: row;
+}
+
+/* Ouest: enchères à gauche, centrées verticalement */
+.west-bids {
+  left: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+}
+
+/* Est: enchères à droite, centrées verticalement */
+.east-bids {
+  right: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+}
+
 .bid-card {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
   font-weight: bold;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   animation: bid-appear 0.3s ease-out;
+  white-space: nowrap;
 }
 
 @keyframes bid-appear {
   from {
     opacity: 0;
-    transform: scale(0.5) translateY(-10px);
+    transform: scale(0.5);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
 }
 
@@ -2076,10 +2144,6 @@ onUnmounted(() => {
 .bid-card.bid-redouble {
   background: linear-gradient(to bottom, #3b82f6, #2563eb);
   color: white;
-}
-
-.bid-text {
-  white-space: nowrap;
 }
 
 /* ================================
@@ -2638,34 +2702,29 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H à droite du jeu */
+/* Points H discrets à droite du jeu */
 .hand-points-right {
   position: absolute;
-  right: -70px;
+  right: -50px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.4));
-  border: 2px solid #fbbf24;
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  min-width: 40px;
+  align-items: baseline;
+  gap: 2px;
+  opacity: 0.7;
 }
 
 .hand-points-right .points-value {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #fbbf24;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1;
 }
 
 .hand-points-right .points-label {
-  font-size: 0.65rem;
-  color: rgba(251, 191, 36, 0.8);
-  font-weight: 600;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
 }
 
 /* Ancien style (compatibilité) */
