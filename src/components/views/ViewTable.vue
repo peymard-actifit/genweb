@@ -667,23 +667,44 @@ const videoControls = ref({
 // Référence à l'élément vidéo du joueur
 const myVideoRef = ref(null)
 const myVideoStream = ref(null)
+const cameraError = ref(null)
 
 // Initialiser la caméra du joueur
 async function initMyCamera() {
+  console.log('[Camera] Tentative d\'initialisation...')
+  cameraError.value = null
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('API MediaDevices non disponible')
+    }
     const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { width: 320, height: 240 }, 
-      audio: true 
+      video: { width: 320, height: 240, facingMode: 'user' }, 
+      audio: false // Audio désactivé pour éviter les problèmes
     })
     myVideoStream.value = stream
-    if (myVideoRef.value) {
-      myVideoRef.value.srcObject = stream
-    }
-    console.log('[Camera] Caméra initialisée')
+    console.log('[Camera] Stream obtenu, tracks:', stream.getTracks().length)
+    // Attacher le stream à l'élément vidéo si disponible
+    attachStreamToVideo()
   } catch (err) {
-    console.error('[Camera] Erreur accès caméra:', err)
+    console.error('[Camera] Erreur accès caméra:', err.name, err.message)
+    cameraError.value = err.message || 'Accès caméra refusé'
   }
 }
+
+// Attacher le stream à l'élément vidéo
+function attachStreamToVideo() {
+  if (myVideoStream.value && myVideoRef.value) {
+    myVideoRef.value.srcObject = myVideoStream.value
+    console.log('[Camera] Stream attaché à l\'élément vidéo')
+  }
+}
+
+// Watch pour attacher le stream quand l'élément vidéo devient disponible
+watch(myVideoRef, (newRef) => {
+  if (newRef && myVideoStream.value) {
+    attachStreamToVideo()
+  }
+})
 
 // Arrêter la caméra
 function stopMyCamera() {
@@ -1489,10 +1510,10 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <!-- Points H (honneurs) à droite du jeu -->
-          <div class="hand-points-right">
-            <div class="points-value">{{ myHandPoints }}</div>
-            <div class="points-label">H</div>
+          <!-- Points H (honneurs) à gauche du jeu -->
+          <div class="hand-points-left">
+            <span class="points-value">{{ myHandPoints }}</span>
+            <span class="points-label">H</span>
           </div>
         </div>
         
@@ -1512,13 +1533,17 @@ onUnmounted(() => {
               muted 
               playsinline
               class="video-stream"
+              :class="{ 'has-stream': myVideoStream }"
             ></video>
-            <div v-if="!myVideoStream" class="video-placeholder">
-              <span>📷</span>
+            <div v-if="!myVideoStream" class="video-placeholder" @click="initMyCamera">
+              <span v-if="cameraError">❌</span>
+              <span v-else>📷</span>
+              <small v-if="cameraError">Cliquer pour réessayer</small>
+              <small v-else>Activer caméra</small>
             </div>
             <div class="video-controls">
-              <button @click="toggleVideo('S')" :class="{ off: !videoControls.S.video }">
-                {{ videoControls.S.video ? '📹' : '📷' }}
+              <button @click="initMyCamera" title="Activer caméra">
+                {{ myVideoStream ? '📹' : '📷' }}
               </button>
               <button @click="toggleAudio('S')" :class="{ off: !videoControls.S.audio }">
                 {{ videoControls.S.audio ? '🔊' : '🔇' }}
@@ -2106,22 +2131,22 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* Cartons d'enchères réalistes - style Bridge Partner */
+/* Cartons d'enchères réalistes - style Bridge Partner - GRANDS et LISIBLES */
 .bid-card {
-  width: 44px;
-  height: 32px;
+  width: 52px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  font-size: 0.85rem;
+  border-radius: 4px;
+  font-size: 1.1rem;
   font-weight: 800;
   box-shadow: 
-    0 3px 6px rgba(0, 0, 0, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   animation: bid-appear 0.3s ease-out;
   white-space: nowrap;
-  border: 1px solid rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(0, 0, 0, 0.3);
 }
 
 /* Cartons O et E en colonne */
@@ -2367,13 +2392,14 @@ onUnmounted(() => {
 
 /* ================================
    BOÎTE À ENCHÈRES RÉALISTE (style Bridge Partner)
-   Positionnée en bas à droite de l'écran, pas sur la table
+   Petite, en bas au centre-gauche pour ne pas masquer les enchères Est
    ================================ */
 .bidding-box-3d {
   position: fixed;
-  bottom: 190px;
-  right: 20px;
-  transform: none;
+  bottom: 10px;
+  left: 200px;
+  transform: scale(0.75);
+  transform-origin: bottom left;
   z-index: 100;
 }
 
@@ -2769,35 +2795,31 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H bien visibles à droite des cartes */
-.hand-points-right {
+/* Points H bien visibles à GAUCHE des cartes */
+.hand-points-left {
   position: absolute;
-  right: -80px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: -70px;
+  bottom: 40px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(30, 30, 30, 0.9));
-  padding: 8px 12px;
-  border-radius: 8px;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 6px 10px;
+  border-radius: 6px;
   border: 2px solid #fbbf24;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-.hand-points-right .points-value {
-  font-size: 1.8rem;
+.hand-points-left .points-value {
+  font-size: 1.5rem;
   font-weight: bold;
   color: #fbbf24;
   line-height: 1;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.hand-points-right .points-label {
-  font-size: 0.9rem;
+.hand-points-left .points-label {
+  font-size: 0.8rem;
   color: #fbbf24;
-  font-weight: 700;
-  opacity: 0.8;
+  font-weight: 600;
 }
 
 /* Ancien style (compatibilité) */
