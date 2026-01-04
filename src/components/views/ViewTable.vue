@@ -1533,11 +1533,11 @@ onUnmounted(() => {
               class="card-perspective"
               :class="{ 
                 'suit-red': card.suit === '♥' || card.suit === '♦',
-                'can-play': isCardPlayable(card),
-                'not-playable': !isCardPlayable(card) && currentPhase === 'playing'
+                'can-play': currentPhase === 'playing' && isCardPlayable(card),
+                'not-playable': currentPhase === 'playing' && !isCardPlayable(card)
               }"
               :style="getCardArcStyle(index, myCards.length)"
-              @click="isCardPlayable(card) && playCard(card)"
+              @click="playCard(card)"
             >
               <div class="card-face">
                 <span class="card-rank">{{ card.rank }}</span>
@@ -2800,24 +2800,20 @@ onUnmounted(() => {
   border-color: #4ade80;
 }
 
-/* Carte NON jouable (grisée) - IMPORTANT */
+/* Carte NON jouable (grisée) - pendant le jeu de la carte uniquement */
 .card-perspective.not-playable {
-  filter: grayscale(80%) brightness(0.5) !important;
-  cursor: not-allowed !important;
-  opacity: 0.5 !important;
-  pointer-events: none;
+  filter: grayscale(70%) brightness(0.6);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .card-perspective.not-playable:hover {
   transform: 
     translateX(var(--card-translate-x, 0))
-    translateY(calc(var(--card-translate-y, 0) - 20px))
+    translateY(calc(var(--card-translate-y, 0) - 25px))
     rotateZ(var(--card-rotation, 0deg))
-    rotateX(-10deg) !important;
-  z-index: 1 !important;
-  box-shadow: 
-    0 8px 16px rgba(0, 0, 0, 0.4),
-    0 2px 0 rgba(255, 255, 255, 0.8) inset !important;
+    rotateX(-10deg);
+  z-index: 2;
 }
 
 .card-face {
