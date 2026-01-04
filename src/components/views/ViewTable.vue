@@ -674,6 +674,35 @@ const videoControls = ref({
   W: { video: true, audio: true }
 })
 
+// Référence à l'élément vidéo du joueur
+const myVideoRef = ref(null)
+const myVideoStream = ref(null)
+
+// Initialiser la caméra du joueur
+async function initMyCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { width: 320, height: 240 }, 
+      audio: true 
+    })
+    myVideoStream.value = stream
+    if (myVideoRef.value) {
+      myVideoRef.value.srcObject = stream
+    }
+    console.log('[Camera] Caméra initialisée')
+  } catch (err) {
+    console.error('[Camera] Erreur accès caméra:', err)
+  }
+}
+
+// Arrêter la caméra
+function stopMyCamera() {
+  if (myVideoStream.value) {
+    myVideoStream.value.getTracks().forEach(track => track.stop())
+    myVideoStream.value = null
+  }
+}
+
 function toggleVideo(position) {
   videoControls.value[position].video = !videoControls.value[position].video
 }
@@ -999,8 +1028,15 @@ onMounted(() => {
   currentDealer.value = 'N'
   currentTurn.value = 'N'
   
+  // Initialiser la caméra du joueur
+  initMyCamera()
+  
   // L'IA joue si le donneur n'est pas humain
   setTimeout(() => checkAITurn(), 1000)
+})
+
+onUnmounted(() => {
+  stopMyCamera()
 })
 </script>
 
@@ -1369,17 +1405,26 @@ onMounted(() => {
           </div>
         </div>
         
-        <!-- Ma vidéo (droite) -->
+        <!-- Ma vidéo (droite) - avec vraie caméra -->
         <div class="my-video-zone">
           <div 
-            class="video-content"
+            class="video-content my-video"
             :class="{ 
               'is-turn': currentTurn === 'S',
               'vulnerable': isVulnerable('S'),
               'not-vulnerable': !isVulnerable('S')
             }"
           >
-            <div class="video-placeholder"></div>
+            <video 
+              ref="myVideoRef" 
+              autoplay 
+              muted 
+              playsinline
+              class="video-stream"
+            ></video>
+            <div v-if="!myVideoStream" class="video-placeholder">
+              <span>📷</span>
+            </div>
             <div class="video-controls">
               <button @click="toggleVideo('S')" :class="{ off: !videoControls.S.video }">
                 {{ videoControls.S.video ? '📹' : '📷' }}
@@ -1573,12 +1618,12 @@ onMounted(() => {
   inset: 0;
   display: grid;
   grid-template-areas:
-    "header header header"
-    "west north east"
-    "west center east"
-    "bottom bottom bottom";
-  grid-template-rows: auto 1fr 2fr 200px;
-  grid-template-columns: 180px 1fr 180px;
+    "header header header header"
+    "west center north east"
+    "west center center east"
+    "bottom bottom bottom bottom";
+  grid-template-rows: auto 120px 1fr 180px;
+  grid-template-columns: 140px 1fr 180px 140px;
   background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
   overflow: hidden;
 }
@@ -1759,6 +1804,8 @@ onMounted(() => {
 
 .video-north {
   grid-area: north;
+  justify-self: end;
+  padding-right: 1rem;
 }
 
 .video-west {
@@ -1834,6 +1881,18 @@ onMounted(() => {
   justify-content: center;
 }
 
+.video-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.my-video .video-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .ai-badge {
   font-size: 2rem;
   opacity: 0.6;
@@ -1879,8 +1938,9 @@ onMounted(() => {
 
 .table-felt {
   width: 100%;
-  max-width: 450px;
-  aspect-ratio: 1;
+  max-width: 600px;
+  min-height: 350px;
+  aspect-ratio: 1.3;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 1rem;
@@ -1892,7 +1952,7 @@ onMounted(() => {
   border: 12px solid #5c3d2e;
   border-bottom-width: 20px;
   position: relative;
-  transform: rotateX(15deg);
+  transform: rotateX(20deg);
   transform-style: preserve-3d;
 }
 
@@ -2128,13 +2188,13 @@ onMounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES 3D RÉALISTE
+   BOÎTE À ENCHÈRES 3D COMPACTE
    ================================ */
 .bidding-box-3d {
   position: absolute;
-  bottom: 8%;
-  left: 50%;
-  transform: translateX(-50%) rotateX(-5deg);
+  bottom: 5%;
+  right: 5%;
+  transform: rotateX(-8deg) scale(0.85);
   z-index: 10;
   transform-style: preserve-3d;
 }
@@ -2143,10 +2203,10 @@ onMounted(() => {
   background: linear-gradient(to bottom, #8b4513, #654321);
   color: #ffd700;
   font-weight: bold;
-  font-size: 0.7rem;
+  font-size: 0.55rem;
   text-align: center;
-  padding: 0.3rem 1rem;
-  border-radius: 0.5rem 0.5rem 0 0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem 0.3rem 0 0;
   box-shadow: 
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 -2px 5px rgba(0, 0, 0, 0.3);
@@ -2155,64 +2215,64 @@ onMounted(() => {
 }
 
 .bidding-box-content {
-  background: linear-gradient(to bottom, #1a1a2e 0%, #0d0d1a 100%);
-  border: 3px solid #654321;
+  background: linear-gradient(to bottom, #2a2a3e 0%, #1a1a2e 100%);
+  border: 2px solid #654321;
   border-top: none;
-  border-radius: 0 0 0.5rem 0.5rem;
-  padding: 0.5rem;
+  border-radius: 0 0 0.3rem 0.3rem;
+  padding: 0.25rem;
   box-shadow: 
-    0 8px 20px rgba(0, 0, 0, 0.6),
-    inset 0 0 20px rgba(0, 0, 0, 0.3);
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
 .bidding-box-3d .bid-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.1rem;
 }
 
 .bidding-box-3d .bid-row {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.1rem;
 }
 
 .bidding-box-3d .bid-btn {
-  width: 34px;
-  height: 26px;
+  width: 24px;
+  height: 18px;
   border: none;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  border-radius: 2px;
+  font-size: 0.5rem;
   font-weight: 700;
   cursor: pointer;
   background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
   color: #1a1a2e;
   transition: all 0.15s;
   box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .bidding-box-3d .bid-btn:hover,
 .bidding-box-3d .bid-btn.is-hovered {
-  transform: scale(1.4) translateY(-5px);
+  transform: scale(1.6) translateY(-8px);
   z-index: 20;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
 }
 
 .bidding-box-3d .bid-btn:active {
-  transform: scale(1.1);
+  transform: scale(1.2);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .bidding-box-3d .bid-btn.is-selected {
   background: linear-gradient(to bottom, #fbbf24, #f59e0b);
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
 }
 
-.bidding-box-3d .bid-btn.suit-clubs { color: #166534; }
+.bidding-box-3d .bid-btn.suit-clubs { color: #1a1a2e; }
 .bidding-box-3d .bid-btn.suit-diamonds { color: #ea580c; }
 .bidding-box-3d .bid-btn.suit-hearts { color: #dc2626; }
-.bidding-box-3d .bid-btn.suit-spades { color: #1e3a8a; }
+.bidding-box-3d .bid-btn.suit-spades { color: #1a1a2e; }
 .bidding-box-3d .bid-btn.suit-nt { 
   color: #1a1a2e;
   background: linear-gradient(to bottom, #c4b5fd, #a78bfa);
@@ -2220,9 +2280,9 @@ onMounted(() => {
 
 .bidding-box-3d .special-bids {
   display: flex;
-  gap: 0.2rem;
-  margin-top: 0.4rem;
-  padding-top: 0.4rem;
+  gap: 0.1rem;
+  margin-top: 0.2rem;
+  padding-top: 0.2rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -2230,7 +2290,8 @@ onMounted(() => {
   flex: 1;
   background: linear-gradient(to bottom, #4ade80, #22c55e);
   color: #1a1a2e;
-  font-size: 0.6rem;
+  font-size: 0.45rem;
+  height: 16px;
 }
 
 .bidding-box-3d .bid-btn.special:first-child {
@@ -2377,14 +2438,15 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* Zone des cartes du joueur - Arc de cercle en perspective */
+/* Zone des cartes du joueur - Arc de cercle en perspective surélevé */
 .my-hand-zone {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 1rem;
-  perspective: 800px;
-  padding-bottom: 1rem;
+  gap: 1.5rem;
+  perspective: 1000px;
+  padding-bottom: 0.5rem;
+  transform: translateY(-30px);
 }
 
 .my-hand-arc {
@@ -2392,38 +2454,43 @@ onMounted(() => {
   justify-content: center;
   align-items: flex-end;
   position: relative;
-  height: 140px;
+  height: 160px;
   transform-style: preserve-3d;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.3), transparent);
+  padding: 10px 20px;
+  border-radius: 20px 20px 0 0;
 }
 
 .card-perspective {
-  width: 70px;
-  height: 100px;
-  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
-  border-radius: 8px;
+  width: 80px;
+  height: 115px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
+  border-radius: 10px;
+  border: 2px solid #e0e0e0;
   box-shadow: 
-    0 4px 8px rgba(0, 0, 0, 0.3),
-    0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    0 8px 16px rgba(0, 0, 0, 0.4),
+    0 2px 0 rgba(255, 255, 255, 0.8) inset,
+    0 -2px 6px rgba(0, 0, 0, 0.1) inset;
   cursor: pointer;
   transition: all 0.2s ease-out;
   position: absolute;
   transform-origin: bottom center;
   transform: 
     translateX(var(--card-translate-x, 0))
-    translateY(var(--card-translate-y, 0))
+    translateY(calc(var(--card-translate-y, 0) - 20px))
     rotateZ(var(--card-rotation, 0deg))
-    rotateX(-5deg);
+    rotateX(-10deg);
 }
 
 .card-perspective:hover {
   transform: 
     translateX(var(--card-translate-x, 0))
-    translateY(-30px)
+    translateY(-50px)
     rotateZ(0deg)
     rotateX(0deg)
-    scale(1.15);
+    scale(1.2);
   z-index: 100 !important;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
 .card-perspective.can-play {
@@ -2431,7 +2498,7 @@ onMounted(() => {
 }
 
 .card-perspective.can-play:hover {
-  box-shadow: 0 15px 35px rgba(74, 222, 128, 0.5), 0 0 20px rgba(74, 222, 128, 0.3);
+  box-shadow: 0 20px 40px rgba(74, 222, 128, 0.6), 0 0 30px rgba(74, 222, 128, 0.4);
 }
 
 .card-face {
@@ -2445,21 +2512,33 @@ onMounted(() => {
   padding: 0.5rem;
 }
 
+/* Rang de la carte - bien visible */
 .card-perspective .card-rank {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #1a1a2e;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #000000;
   line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+/* Couleur de la carte - bien visible */
 .card-perspective .card-suit {
-  font-size: 2rem;
+  font-size: 2.5rem;
   line-height: 1;
+  color: #000000;
 }
 
+/* Cartes rouges (coeur et carreau) */
 .card-perspective.suit-red .card-rank,
 .card-perspective.suit-red .card-suit {
   color: #dc2626;
+}
+
+/* Cartes noires (pique et trèfle) - bien contrastées */
+.card-perspective:not(.suit-red) .card-rank,
+.card-perspective:not(.suit-red) .card-suit {
+  color: #000000;
+  text-shadow: none;
 }
 
 /* Points du jeu */
