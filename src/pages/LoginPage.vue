@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// Version de l'application
+const appVersion = __APP_VERSION__
+
 const router = useRouter()
 const authStore = useAuthStore()
 
@@ -59,6 +62,7 @@ function toggleMode() {
           <span class="logo-icon">◈</span>
           <span class="logo-text">Genweb</span>
         </div>
+        <span class="version">v{{ appVersion }}</span>
         <h1>{{ isRegister ? 'Créer un compte' : 'Connexion' }}</h1>
         <p class="subtitle">Studio de création de sites web</p>
       </div>
@@ -182,6 +186,14 @@ function toggleMode() {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--accent);
+}
+
+.version {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
 }
 
 .login-header h1 {
