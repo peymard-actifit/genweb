@@ -219,10 +219,267 @@ function parseCSVLine(line) {
   return result
 }
 
+/**
+ * IA pour jouer au bridge - Enchères
+ * @param {Object} context - Contexte du jeu (main, enchères précédentes, position, vulnérabilité)
+ * @returns {Promise<string>} - L'enchère choisie
+ */
+export async function bridgeAIBid(context) {
+  if (!OPENAI_API_KEY) {
+    // Fallback: IA simple sans API
+    return simpleBridgeBid(context)
+  }
+
+  const { hand, bids, position, vulnerability, dealer, lastBid } = context
+  
+  const systemMessage = `Tu es un joueur de bridge expert. Tu dois choisir une enchère.
+Règles:
+- Les enchères vont de 1♣ à 7SA (ordre: ♣, ♦, ♥, ♠, SA)
+- Tu peux dire "Passe", "Contre" (si l'adversaire a enchéri), ou "Surcontre" (si contré)
+- Une enchère doit être plus forte que la précédente
+- Réponds UNIQUEMENT par l'enchère, rien d'autre (ex: "1♠", "Passe", "3SA")
+
+Évaluation standard: As=4, Roi=3, Dame=2, Valet=1
+- 0-5 points: Passe
+- 6-9: Ouvrir au niveau 1 si bonne distribution
+- 12-14: Ouvrir 1SA équilibré, ou 1 couleur
+- 15-17: 1SA fort
+- 20+: 2♣ fort`
+
+  const userMessage = `Position: ${position}
+Donneur: ${dealer}
+Vulnérabilité: NS=${vulnerability.NS ? 'Oui' : 'Non'}, EW=${vulnerability.EW ? 'Oui' : 'Non'}
+Ma main: ${formatHandForAI(hand)}
+Enchères précédentes: ${bids.length > 0 ? bids.map(b => `${b.position}:${b.bid}`).join(', ') : 'Aucune'}
+Dernière enchère: ${lastBid || 'Aucune'}
+
+Quelle enchère fais-tu?`
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.5,
+        max_tokens: 20
+      })
+    })
+
+    if (!response.ok) {
+      return simpleBridgeBid(context)
+    }
+
+    const data = await response.json()
+    const aiResponse = data.choices[0]?.message?.content?.trim() || 'Passe'
+    
+    // Valider et nettoyer la réponse
+    return validateBidResponse(aiResponse, context)
+  } catch (err) {
+    console.error('Erreur IA Bridge (enchères):', err)
+    return simpleBridgeBid(context)
+  }
+}
+
+/**
+ * IA pour jouer au bridge - Jeu de la carte
+ * @param {Object} context - Contexte du jeu
+ * @returns {Promise<Object>} - La carte choisie { rank, suit }
+ */
+export async function bridgeAIPlayCard(context) {
+  if (!OPENAI_API_KEY) {
+    return simpleBridgePlayCard(context)
+  }
+
+  const { hand, trick, position, contract, trumpSuit, leadSuit } = context
+  
+  const systemMessage = `Tu es un joueur de bridge expert. Tu dois jouer une carte.
+Règles:
+- Tu DOIS fournir à la couleur demandée si tu en as
+- Si tu n'as pas la couleur, tu peux couper (atout) ou défausser
+- Réponds UNIQUEMENT par la carte, format: "rang couleur" (ex: "A♠", "10♥", "K♦")
+- Rangs: A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2`
+
+  const userMessage = `Position: ${position}
+Contrat: ${contract}
+Atout: ${trumpSuit || 'SA'}
+Couleur demandée: ${leadSuit || 'Première carte du pli'}
+Pli en cours: ${formatTrickForAI(trick)}
+Ma main: ${formatHandForAI(hand)}
+
+Quelle carte joues-tu?`
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.3,
+        max_tokens: 20
+      })
+    })
+
+    if (!response.ok) {
+      return simpleBridgePlayCard(context)
+    }
+
+    const data = await response.json()
+    const aiResponse = data.choices[0]?.message?.content?.trim() || ''
+    
+    return parseCardResponse(aiResponse, hand, leadSuit)
+  } catch (err) {
+    console.error('Erreur IA Bridge (carte):', err)
+    return simpleBridgePlayCard(context)
+  }
+}
+
+// Fonctions helper pour l'IA bridge
+
+function formatHandForAI(hand) {
+  const bySuit = { '♠': [], '♥': [], '♦': [], '♣': [] }
+  hand.forEach(card => {
+    if (bySuit[card.suit]) {
+      bySuit[card.suit].push(card.rank)
+    }
+  })
+  return Object.entries(bySuit)
+    .map(([suit, ranks]) => `${suit}: ${ranks.join(' ') || '-'}`)
+    .join(' | ')
+}
+
+function formatTrickForAI(trick) {
+  const cards = []
+  for (const [pos, card] of Object.entries(trick)) {
+    if (card) {
+      cards.push(`${pos}:${card.rank}${card.suit}`)
+    }
+  }
+  return cards.length > 0 ? cards.join(', ') : 'Vide'
+}
+
+function validateBidResponse(response, context) {
+  const validBids = ['Passe', 'Contre', 'Surcontre']
+  const levels = ['1', '2', '3', '4', '5', '6', '7']
+  const suits = ['♣', '♦', '♥', '♠', 'SA']
+  
+  // Nettoyer la réponse
+  let bid = response.replace(/["""'']/g, '').trim()
+  
+  // Vérifier si c'est une enchère spéciale
+  if (validBids.includes(bid)) {
+    return bid
+  }
+  
+  // Vérifier si c'est une enchère valide (niveau + couleur)
+  for (const level of levels) {
+    for (const suit of suits) {
+      if (bid === `${level}${suit}` || bid.includes(`${level}${suit}`)) {
+        return `${level}${suit}`
+      }
+    }
+  }
+  
+  // Si pas valide, passer
+  return 'Passe'
+}
+
+function parseCardResponse(response, hand, leadSuit) {
+  // Essayer de parser la réponse
+  const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
+  const suits = ['♠', '♥', '♦', '♣']
+  
+  for (const card of hand) {
+    // Vérifier si la réponse contient cette carte
+    if (response.includes(card.rank) && response.includes(card.suit)) {
+      return card
+    }
+  }
+  
+  // Si pas trouvé, jouer une carte valide (fournir à la couleur si possible)
+  return simpleBridgePlayCard({ hand, leadSuit })
+}
+
+// IA simple sans API (fallback)
+function simpleBridgeBid(context) {
+  const { hand, bids, lastBid } = context
+  
+  // Calculer les points
+  let points = 0
+  const suitCounts = { '♠': 0, '♥': 0, '♦': 0, '♣': 0 }
+  
+  hand.forEach(card => {
+    if (card.rank === 'A') points += 4
+    else if (card.rank === 'K') points += 3
+    else if (card.rank === 'Q') points += 2
+    else if (card.rank === 'J') points += 1
+    suitCounts[card.suit]++
+  })
+  
+  // Trouver la plus longue couleur
+  let longestSuit = '♣'
+  let maxCount = 0
+  for (const [suit, count] of Object.entries(suitCounts)) {
+    if (count > maxCount) {
+      maxCount = count
+      longestSuit = suit
+    }
+  }
+  
+  // Logique simple
+  if (points < 6) return 'Passe'
+  
+  if (!lastBid) {
+    // Ouvrir
+    if (points >= 12 && points <= 14 && maxCount <= 4) return '1SA'
+    if (points >= 12) return `1${longestSuit}`
+    if (points >= 6 && maxCount >= 5) return `1${longestSuit}`
+    return 'Passe'
+  }
+  
+  // Répondre
+  if (points < 6) return 'Passe'
+  return 'Passe'
+}
+
+function simpleBridgePlayCard(context) {
+  const { hand, leadSuit } = context
+  
+  if (!hand || hand.length === 0) return null
+  
+  // Si on doit fournir à la couleur
+  if (leadSuit) {
+    const cardsInSuit = hand.filter(c => c.suit === leadSuit)
+    if (cardsInSuit.length > 0) {
+      // Jouer la plus petite de la couleur
+      return cardsInSuit[cardsInSuit.length - 1]
+    }
+  }
+  
+  // Sinon, jouer la plus petite carte
+  return hand[hand.length - 1]
+}
+
 export default {
   executePrompt,
   isConfigured,
-  parseCSV
+  parseCSV,
+  bridgeAIBid,
+  bridgeAIPlayCard
 }
 
 

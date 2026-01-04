@@ -3,9 +3,10 @@
  * Vue Table - Jeu de Bridge
  * Affiche un tapis de bridge en perspective 3D (vue depuis SUD)
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { bridgeAIBid, bridgeAIPlayCard } from '@/lib/openai'
 
 const props = defineProps({
   view: { type: Object, required: true },
@@ -25,6 +26,18 @@ const loading = ref(false)
 // État du joueur
 const myPosition = ref(null) // 'S', 'W', 'N', 'E'
 const myCards = ref([])
+
+// Joueurs humains connectés (positions occupées)
+const humanPlayers = ref(new Set(['S'])) // Par défaut, seul Sud est humain
+
+// Vérifier si une position est jouée par l'IA
+function isAIPlayer(position) {
+  return !humanPlayers.value.has(position)
+}
+
+// État de l'IA
+const aiThinking = ref(false)
+const aiDelay = 1500 // Délai en ms avant que l'IA joue
 
 // État du jeu
 const currentPhase = ref('bidding') // 'waiting', 'bidding', 'playing', 'finished'
@@ -198,8 +211,280 @@ function nextDeal() {
   tricksWonEW.value = 0
   tricksPlayed.value = 0
   
-  // Redistribuer les cartes
-  myCards.value = generateDemoHand()
+  // Redistribuer les cartes à tous les joueurs
+  distributeCards()
+  
+  // Vérifier si l'IA doit jouer en premier
+  checkAITurn()
+}
+
+// Distribution des cartes à tous les joueurs
+function distributeCards() {
+  const deck = []
+  const suits = ['♠', '♥', '♦', '♣']
+  const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
+  
+  // Créer le jeu complet
+  for (const suit of suits) {
+    for (const rank of ranks) {
+      deck.push({ rank, suit, id: `${rank}${suit}` })
+    }
+  }
+  
+  // Mélanger
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[deck[i], deck[j]] = [deck[j], deck[i]]
+  }
+  
+  // Distribuer 13 cartes à chaque joueur
+  const positions = ['N', 'E', 'S', 'W']
+  positions.forEach((pos, index) => {
+    const hand = deck.slice(index * 13, (index + 1) * 13)
+    // Trier par couleur puis par rang
+    hand.sort((a, b) => {
+      const suitOrder = suits.indexOf(a.suit) - suits.indexOf(b.suit)
+      if (suitOrder !== 0) return suitOrder
+      return ranks.indexOf(a.rank) - ranks.indexOf(b.rank)
+    })
+    allHands.value[pos] = hand
+  })
+  
+  // Mettre à jour la main du joueur connecté
+  if (myPosition.value) {
+    myCards.value = allHands.value[myPosition.value]
+  }
+}
+
+// Vérifier si c'est à l'IA de jouer
+function checkAITurn() {
+  if (currentPhase.value === 'finished' || currentPhase.value === 'waiting') return
+  if (!isAIPlayer(currentTurn.value)) return
+  
+  console.log(`[IA] C'est au tour de ${currentTurn.value} (IA)`)
+  
+  // Délai pour simuler la réflexion
+  aiThinking.value = true
+  setTimeout(async () => {
+    if (currentPhase.value === 'bidding') {
+      await makeAIBid()
+    } else if (currentPhase.value === 'playing') {
+      await makeAIPlayCard()
+    }
+    aiThinking.value = false
+  }, aiDelay)
+}
+
+// L'IA fait une enchère
+async function makeAIBid() {
+  const position = currentTurn.value
+  const hand = allHands.value[position]
+  
+  const context = {
+    hand,
+    bids: bids.value,
+    position,
+    vulnerability: vulnerability.value,
+    dealer: currentDealer.value,
+    lastBid: lastRealBid.value?.bid || null
+  }
+  
+  try {
+    const bid = await bridgeAIBid(context)
+    console.log(`[IA ${position}] Enchère: ${bid}`)
+    
+    // Enregistrer l'enchère
+    processBid(position, bid)
+  } catch (err) {
+    console.error('Erreur IA enchère:', err)
+    processBid(position, 'Passe')
+  }
+}
+
+// L'IA joue une carte
+async function makeAIPlayCard() {
+  const position = currentTurn.value
+  const hand = allHands.value[position]
+  
+  // Déterminer la couleur demandée
+  const leadPosition = leader.value
+  let leadSuit = null
+  
+  // Trouver la première carte du pli
+  const playOrder = getPlayOrder()
+  for (const pos of playOrder) {
+    if (currentTrickCards.value[pos]) {
+      leadSuit = currentTrickCards.value[pos].suit
+      break
+    }
+  }
+  
+  const context = {
+    hand,
+    trick: currentTrickCards.value,
+    position,
+    contract: contract.value,
+    trumpSuit: contractSuit.value === 'SA' ? null : contractSuit.value,
+    leadSuit
+  }
+  
+  try {
+    const card = await bridgeAIPlayCard(context)
+    console.log(`[IA ${position}] Joue: ${card?.rank}${card?.suit}`)
+    
+    if (card) {
+      processPlayCard(position, card)
+    }
+  } catch (err) {
+    console.error('Erreur IA carte:', err)
+    // Jouer la première carte valide
+    if (hand.length > 0) {
+      processPlayCard(position, hand[0])
+    }
+  }
+}
+
+// Ordre de jeu dans le pli actuel
+function getPlayOrder() {
+  const start = leader.value || currentDealer.value
+  const order = []
+  let pos = start
+  for (let i = 0; i < 4; i++) {
+    order.push(pos)
+    pos = nextPlayer[pos]
+  }
+  return order
+}
+
+// Traiter une enchère (utilisé par humain et IA)
+function processBid(position, bid) {
+  bids.value.push({
+    position,
+    bid,
+    timestamp: new Date()
+  })
+  
+  if (bid === 'Passe') {
+    consecutivePasses.value++
+  } else if (bid === 'Contre') {
+    consecutivePasses.value = 0
+    isDoubled.value = true
+    isRedoubled.value = false
+  } else if (bid === 'Surcontre') {
+    consecutivePasses.value = 0
+    isRedoubled.value = true
+  } else {
+    consecutivePasses.value = 0
+    lastRealBid.value = { position, bid }
+    isDoubled.value = false
+    isRedoubled.value = false
+  }
+  
+  if (checkBiddingEnd()) {
+    endBidding()
+    // Après la fin des enchères, vérifier si l'IA doit entamer
+    setTimeout(() => checkAITurn(), aiDelay)
+    return
+  }
+  
+  currentTurn.value = nextPlayer[currentTurn.value]
+  
+  // Vérifier si l'IA doit jouer
+  checkAITurn()
+}
+
+// Traiter une carte jouée (utilisé par humain et IA)
+function processPlayCard(position, card) {
+  // Retirer la carte de la main
+  const handIndex = allHands.value[position].findIndex(
+    c => c.rank === card.rank && c.suit === card.suit
+  )
+  if (handIndex !== -1) {
+    allHands.value[position].splice(handIndex, 1)
+  }
+  
+  // Mettre à jour la main du joueur si c'est lui
+  if (position === myPosition.value) {
+    myCards.value = allHands.value[position]
+  }
+  
+  // Ajouter la carte au pli
+  currentTrickCards.value[position] = card
+  
+  // Vérifier si le pli est complet
+  const cardsPlayed = Object.values(currentTrickCards.value).filter(c => c !== null).length
+  
+  if (cardsPlayed === 4) {
+    // Déterminer le gagnant du pli
+    setTimeout(() => {
+      const winner = determineTrickWinner()
+      collectTrick(winner)
+      
+      // Vérifier si l'IA doit jouer le pli suivant
+      setTimeout(() => checkAITurn(), 500)
+    }, 1500) // Délai pour voir les cartes
+  } else {
+    // Passer au joueur suivant
+    currentTurn.value = nextPlayer[currentTurn.value]
+    checkAITurn()
+  }
+}
+
+// Déterminer le gagnant du pli
+function determineTrickWinner() {
+  const trumpSuit = contractSuit.value === 'SA' ? null : contractSuit.value
+  const playOrder = getPlayOrder()
+  const leadSuit = currentTrickCards.value[playOrder[0]]?.suit
+  
+  const rankOrder = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+  
+  let winner = playOrder[0]
+  let winningCard = currentTrickCards.value[winner]
+  
+  for (let i = 1; i < 4; i++) {
+    const pos = playOrder[i]
+    const card = currentTrickCards.value[pos]
+    
+    if (!card) continue
+    
+    const currentWins = compareCards(winningCard, card, leadSuit, trumpSuit, rankOrder)
+    if (!currentWins) {
+      winner = pos
+      winningCard = card
+    }
+  }
+  
+  return winner
+}
+
+// Compare deux cartes, retourne true si card1 gagne
+function compareCards(card1, card2, leadSuit, trumpSuit, rankOrder) {
+  // Si card2 est atout et card1 non
+  if (trumpSuit && card2.suit === trumpSuit && card1.suit !== trumpSuit) {
+    return false
+  }
+  
+  // Si card1 est atout et card2 non
+  if (trumpSuit && card1.suit === trumpSuit && card2.suit !== trumpSuit) {
+    return true
+  }
+  
+  // Si les deux sont atout ou les deux sont de la couleur demandée
+  if (card1.suit === card2.suit) {
+    return rankOrder.indexOf(card1.rank) > rankOrder.indexOf(card2.rank)
+  }
+  
+  // Si card2 n'est pas de la couleur demandée (et pas atout)
+  if (card2.suit !== leadSuit && card2.suit !== trumpSuit) {
+    return true
+  }
+  
+  // Si card1 n'est pas de la couleur demandée
+  if (card1.suit !== leadSuit) {
+    return false
+  }
+  
+  return true
 }
 
 // Vulnérabilité par camp (NS = Nord-Sud, EW = Est-Ouest)
@@ -488,8 +773,28 @@ function playCard(card) {
     console.log('Ce n\'est pas votre tour')
     return
   }
-  console.log('Jouer carte:', card)
-  // TODO: Implémenter la logique de jeu et sauvegarder en BDD
+  
+  // Vérifier si le joueur doit fournir à la couleur
+  const playOrder = getPlayOrder()
+  let leadSuit = null
+  for (const pos of playOrder) {
+    if (currentTrickCards.value[pos]) {
+      leadSuit = currentTrickCards.value[pos].suit
+      break
+    }
+  }
+  
+  if (leadSuit && card.suit !== leadSuit) {
+    // Vérifier si le joueur a la couleur demandée
+    const hasLeadSuit = myCards.value.some(c => c.suit === leadSuit)
+    if (hasLeadSuit) {
+      console.log('Vous devez fournir à la couleur:', leadSuit)
+      return
+    }
+  }
+  
+  console.log('Jouer carte:', card.rank + card.suit)
+  processPlayCard(myPosition.value, card)
 }
 
 async function makeBid(bid) {
@@ -500,42 +805,7 @@ async function makeBid(bid) {
   }
   
   console.log('Enchère:', bid, 'par', myPosition.value)
-  
-  // Ajouter l'enchère à la liste
-  bids.value.push({
-    position: myPosition.value,
-    bid: bid,
-    timestamp: new Date()
-  })
-  
-  // Gérer les passes et les enchères
-  if (bid === 'Passe') {
-    consecutivePasses.value++
-  } else if (bid === 'Contre') {
-    consecutivePasses.value = 0
-    isDoubled.value = true
-    isRedoubled.value = false
-  } else if (bid === 'Surcontre') {
-    consecutivePasses.value = 0
-    isRedoubled.value = true
-  } else {
-    // Enchère normale (1♣, 2SA, etc.)
-    consecutivePasses.value = 0
-    lastRealBid.value = { position: myPosition.value, bid: bid }
-    isDoubled.value = false
-    isRedoubled.value = false
-  }
-  
-  // Vérifier si les enchères sont terminées
-  if (checkBiddingEnd()) {
-    endBidding()
-    return
-  }
-  
-  // Passer au joueur suivant
-  currentTurn.value = nextPlayer[currentTurn.value]
-  
-  // TODO: Sauvegarder en BDD
+  processBid(myPosition.value, bid)
 }
 
 // Ordre de jeu pour une donne
@@ -582,14 +852,17 @@ function generateDemoHand() {
 
 onMounted(() => {
   fetchTables()
-  // Générer une main de démo
-  myCards.value = generateDemoHand()
   // Position du joueur connecté
   myPosition.value = 'S'
+  // Distribuer les cartes à tous les joueurs
+  distributeCards()
   // Démarrer en phase d'enchères, le donneur (N) commence
   currentPhase.value = 'bidding'
   currentDealer.value = 'N'
   currentTurn.value = 'N'
+  
+  // L'IA joue si le donneur n'est pas humain
+  setTimeout(() => checkAITurn(), 1000)
 })
 </script>
 
@@ -665,6 +938,9 @@ onMounted(() => {
         }">
           {{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : currentPhase === 'playing' ? 'Jeu de la carte' : 'Fin du coup' }}
         </span>
+        <span v-if="aiThinking" class="ai-thinking">
+          🤖 {{ currentTurn }} réfléchit...
+        </span>
       </div>
       
       <!-- Zone vidéo NORD (haut de l'écran) -->
@@ -677,7 +953,9 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('N')
           }"
         >
-          <div class="video-placeholder"></div>
+          <div class="video-placeholder">
+            <span v-if="isAIPlayer('N')" class="ai-badge">🤖</span>
+          </div>
           <div class="video-controls">
             <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
               {{ videoControls.N.video ? '📹' : '📷' }}
@@ -699,7 +977,9 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('W')
           }"
         >
-          <div class="video-placeholder"></div>
+          <div class="video-placeholder">
+            <span v-if="isAIPlayer('W')" class="ai-badge">🤖</span>
+          </div>
           <div class="video-controls">
             <button @click="toggleVideo('W')" :class="{ off: !videoControls.W.video }">
               {{ videoControls.W.video ? '📹' : '📷' }}
@@ -721,7 +1001,9 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('E')
           }"
         >
-          <div class="video-placeholder"></div>
+          <div class="video-placeholder">
+            <span v-if="isAIPlayer('E')" class="ai-badge">🤖</span>
+          </div>
           <div class="video-controls">
             <button @click="toggleVideo('E')" :class="{ off: !videoControls.E.video }">
               {{ videoControls.E.video ? '📹' : '📷' }}
@@ -1214,6 +1496,21 @@ onMounted(() => {
   background: #a855f7;
 }
 
+.ai-thinking {
+  padding: 0.25rem 0.75rem;
+  background: rgba(139, 92, 246, 0.3);
+  border: 1px solid #8b5cf6;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  color: #c4b5fd;
+  animation: ai-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ================================
    ZONES VIDÉO
    ================================ */
@@ -1298,6 +1595,14 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg, #2d3748, #1a202c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-badge {
+  font-size: 2rem;
+  opacity: 0.6;
 }
 
 .video-controls {
