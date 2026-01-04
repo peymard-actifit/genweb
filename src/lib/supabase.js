@@ -4,11 +4,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Log de diagnostic (toujours affiché)
+console.log('[Supabase] Configuration:')
+console.log('[Supabase] URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NON DÉFINIE')
+console.log('[Supabase] Key:', supabaseAnonKey ? 'définie (' + supabaseAnonKey.length + ' chars)' : 'NON DÉFINIE')
+
 // Vérification des variables d'environnement
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[Supabase] Variables d\'environnement manquantes. Configurez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY')
-  console.warn('[Supabase] URL actuelle:', supabaseUrl ? 'définie' : 'MANQUANTE')
-  console.warn('[Supabase] Key actuelle:', supabaseAnonKey ? 'définie' : 'MANQUANTE')
+  console.error('[Supabase] ❌ Variables d\'environnement manquantes!')
 }
 
 // Client Supabase
