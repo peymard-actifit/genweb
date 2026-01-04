@@ -27,14 +27,57 @@ const myPosition = ref(null) // 'S', 'W', 'N', 'E'
 const myCards = ref([])
 
 // État du jeu
-const currentPhase = ref('bidding') // 'waiting', 'bidding', 'playing'
+const currentPhase = ref('playing') // 'waiting', 'bidding', 'playing'
 const currentDealNumber = ref(1)
 const currentDealer = ref('N') // Donneur de la donne en cours
-const currentTurn = ref('N') // À qui c'est de jouer/enchérir
+const currentTurn = ref('S') // À qui c'est de jouer/enchérir
 const bids = ref([])
-const currentTrick = ref([])
-const declarer = ref(null)
-const contract = ref(null)
+const declarer = ref('S')
+const contract = ref('4♠')
+
+// Cartes jouées dans le pli en cours (devant chaque joueur)
+const currentTrickCards = ref({
+  N: null, // { rank: 'A', suit: '♠' }
+  E: null,
+  S: null,
+  W: null
+})
+
+// Plis gagnés par le joueur (NS)
+// Chaque pli: { won: true/false, cards: [...] }
+const myTricks = ref([])
+const tricksWonNS = ref(0)
+const tricksWonEW = ref(0)
+
+// Pour la démo, simuler des cartes jouées
+function simulateTrickCards() {
+  // Simuler des cartes jouées par les autres joueurs
+  currentTrickCards.value = {
+    N: { rank: 'K', suit: '♠' },
+    E: { rank: '10', suit: '♠' },
+    S: null, // C'est au Sud de jouer
+    W: { rank: '5', suit: '♠' }
+  }
+}
+
+// Collecter le pli (quand les 4 cartes sont jouées)
+function collectTrick(winner) {
+  const isWon = winner === 'N' || winner === 'S' // NS a gagné
+  
+  myTricks.value.push({
+    won: isWon,
+    cards: { ...currentTrickCards.value }
+  })
+  
+  if (isWon) {
+    tricksWonNS.value++
+  } else {
+    tricksWonEW.value++
+  }
+  
+  // Réinitialiser le pli
+  currentTrickCards.value = { N: null, E: null, S: null, W: null }
+}
 
 // Vulnérabilité par camp (NS = Nord-Sud, EW = Est-Ouest)
 // Selon les règles du bridge: donne 1 = personne, 2 = NS, 3 = EW, 4 = tous, puis cycle
@@ -396,6 +439,17 @@ onMounted(() => {
   fetchTables()
   // Générer une main de démo
   myCards.value = generateDemoHand()
+  // Simuler des cartes jouées pour la démo
+  simulateTrickCards()
+  // Simuler quelques plis pour la démo
+  myTricks.value = [
+    { won: true, cards: {} },
+    { won: true, cards: {} },
+    { won: false, cards: {} },
+    { won: true, cards: {} },
+  ]
+  tricksWonNS.value = 3
+  tricksWonEW.value = 1
 })
 </script>
 
@@ -536,17 +590,78 @@ onMounted(() => {
           <span class="table-position-label pos-north">N</span>
           <span class="table-position-label pos-west">O</span>
           <span class="table-position-label pos-east">E</span>
-          <!-- S n'est pas affiché car c'est le joueur connecté -->
           
-          <!-- Zone des cartes jouées -->
-          <div class="trick-area">
-            <div class="played-card north-play"></div>
-            <div class="played-card west-play"></div>
-            <div class="played-card east-play"></div>
-            <div class="played-card south-play"></div>
+          <!-- Cartes jouées DEVANT chaque joueur (agrandies) -->
+          <div v-if="currentPhase === 'playing'" class="played-cards-area">
+            <!-- Carte Nord (en haut, devant le Nord) -->
+            <div class="played-card-zone north-zone">
+              <div 
+                v-if="currentTrickCards.N" 
+                class="played-card-large"
+                :class="{ 'suit-red': currentTrickCards.N.suit === '♥' || currentTrickCards.N.suit === '♦' }"
+              >
+                <span class="card-rank">{{ currentTrickCards.N.rank }}</span>
+                <span class="card-suit">{{ currentTrickCards.N.suit }}</span>
+              </div>
+            </div>
+            
+            <!-- Carte Ouest (à gauche, devant l'Ouest) -->
+            <div class="played-card-zone west-zone">
+              <div 
+                v-if="currentTrickCards.W" 
+                class="played-card-large"
+                :class="{ 'suit-red': currentTrickCards.W.suit === '♥' || currentTrickCards.W.suit === '♦' }"
+              >
+                <span class="card-rank">{{ currentTrickCards.W.rank }}</span>
+                <span class="card-suit">{{ currentTrickCards.W.suit }}</span>
+              </div>
+            </div>
+            
+            <!-- Carte Est (à droite, devant l'Est) -->
+            <div class="played-card-zone east-zone">
+              <div 
+                v-if="currentTrickCards.E" 
+                class="played-card-large"
+                :class="{ 'suit-red': currentTrickCards.E.suit === '♥' || currentTrickCards.E.suit === '♦' }"
+              >
+                <span class="card-rank">{{ currentTrickCards.E.rank }}</span>
+                <span class="card-suit">{{ currentTrickCards.E.suit }}</span>
+              </div>
+            </div>
+            
+            <!-- Carte Sud (en bas, devant le Sud / joueur connecté) -->
+            <div class="played-card-zone south-zone">
+              <div 
+                v-if="currentTrickCards.S" 
+                class="played-card-large"
+                :class="{ 'suit-red': currentTrickCards.S.suit === '♥' || currentTrickCards.S.suit === '♦' }"
+              >
+                <span class="card-rank">{{ currentTrickCards.S.rank }}</span>
+                <span class="card-suit">{{ currentTrickCards.S.suit }}</span>
+              </div>
+            </div>
           </div>
           
-          <!-- Boîte à enchères sur la table -->
+          <!-- Plis du joueur (NS) - empilés comme au bridge -->
+          <div class="my-tricks-zone">
+            <div 
+              v-for="(trick, index) in myTricks" 
+              :key="index"
+              class="trick-pile"
+              :class="{ 'trick-won': trick.won, 'trick-lost': !trick.won }"
+              :style="{ '--trick-index': index }"
+            >
+              <div class="trick-card"></div>
+            </div>
+          </div>
+          
+          <!-- Score des plis -->
+          <div v-if="currentPhase === 'playing'" class="tricks-score">
+            <span class="score-ns">NS: {{ tricksWonNS }}</span>
+            <span class="score-ew">EW: {{ tricksWonEW }}</span>
+          </div>
+          
+          <!-- Boîte à enchères (seulement pendant les enchères) -->
           <div v-if="currentPhase === 'bidding'" class="bidding-box-on-table">
             <div class="bid-grid">
               <div v-for="level in bidLevels" :key="level" class="bid-row">
@@ -590,11 +705,10 @@ onMounted(() => {
               </button>
             </div>
           </div>
-          
         </div>
         
         <!-- Enchères agrandies (au survol ou sélectionnées) -->
-        <div v-if="hoveredBid || selectedBids.length > 0" class="enlarged-bids">
+        <div v-if="(hoveredBid || selectedBids.length > 0) && currentPhase === 'bidding'" class="enlarged-bids">
           <div v-if="hoveredBid && !selectedBids.includes(hoveredBid)" class="enlarged-bid hovered">
             <span class="bid-level">{{ hoveredBid }}</span>
           </div>
@@ -1052,36 +1166,6 @@ onMounted(() => {
   position: relative;
 }
 
-.trick-area {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 140px;
-  height: 140px;
-  display: grid;
-  grid-template-areas:
-    ". n ."
-    "w . e"
-    ". s .";
-  grid-template-columns: 1fr auto 1fr;
-  grid-template-rows: 1fr auto 1fr;
-  gap: 0.5rem;
-}
-
-.played-card {
-  width: 45px;
-  height: 63px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  opacity: 0.3;
-}
-
-.north-play { grid-area: n; justify-self: center; }
-.east-play { grid-area: e; align-self: center; }
-.south-play { grid-area: s; justify-self: center; }
-.west-play { grid-area: w; align-self: center; }
 
 /* Labels d'orientation sur la table */
 .table-position-label {
@@ -1116,6 +1200,140 @@ onMounted(() => {
   left: 8%;
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* ================================
+   CARTES JOUÉES DEVANT CHAQUE JOUEUR
+   ================================ */
+.played-cards-area {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.played-card-zone {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.played-card-zone.north-zone {
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.played-card-zone.south-zone {
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.played-card-zone.west-zone {
+  left: 12%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.played-card-zone.east-zone {
+  right: 12%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.played-card-large {
+  width: 55px;
+  height: 77px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: card-appear 0.3s ease-out;
+}
+
+@keyframes card-appear {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.played-card-large .card-rank {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #1a1a2e;
+}
+
+.played-card-large .card-suit {
+  font-size: 1.6rem;
+}
+
+.played-card-large.suit-red .card-rank,
+.played-card-large.suit-red .card-suit {
+  color: #dc2626;
+}
+
+/* ================================
+   PLIS DU JOUEUR (comme au bridge)
+   ================================ */
+.my-tricks-zone {
+  position: absolute;
+  bottom: 5%;
+  right: 5%;
+  display: flex;
+  gap: 2px;
+}
+
+.trick-pile {
+  position: relative;
+}
+
+/* Pli gagné = vertical */
+.trick-pile.trick-won .trick-card {
+  width: 20px;
+  height: 28px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  border: 1px solid #60a5fa;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Pli perdu = horizontal */
+.trick-pile.trick-lost .trick-card {
+  width: 28px;
+  height: 20px;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border: 1px solid #c084fc;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Score des plis */
+.tricks-score {
+  position: absolute;
+  top: 5%;
+  right: 5%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.tricks-score .score-ns {
+  color: #4ade80;
+}
+
+.tricks-score .score-ew {
+  color: #f87171;
 }
 
 /* ================================
