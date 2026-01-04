@@ -7,6 +7,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 // Vérification des variables d'environnement
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('[Supabase] Variables d\'environnement manquantes. Configurez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY')
+  console.warn('[Supabase] URL actuelle:', supabaseUrl ? 'définie' : 'MANQUANTE')
+  console.warn('[Supabase] Key actuelle:', supabaseAnonKey ? 'définie' : 'MANQUANTE')
 }
 
 // Client Supabase
