@@ -66,6 +66,15 @@ async function fetchTables() {
     
     if (error) throw error
     tables.value = data || []
+    
+    // Vérifier si l'utilisateur est déjà assis à une table
+    for (const table of tables.value) {
+      const myPlayer = table.bridge_players?.find(p => p.user_id === authStore.user?.id)
+      if (myPlayer) {
+        console.log('Déjà assis à la table:', table.name, 'position:', myPlayer.position)
+        // Ne pas entrer automatiquement, montrer un bouton "Reprendre"
+      }
+    }
   } catch (err) {
     console.error('Erreur chargement tables:', err)
   } finally {
@@ -73,11 +82,17 @@ async function fetchTables() {
   }
 }
 
+// Vérifier si l'utilisateur est déjà à une table
+function getMyTablePosition(table) {
+  const player = table.bridge_players?.find(p => p.user_id === authStore.user?.id)
+  return player?.position || null
+}
+
 async function createTable() {
   if (!newTableName.value.trim()) return
   
   try {
-    const { data, error } = await supabase
+    const { data: tableData, error } = await supabase
       .from('bridge_tables')
       .insert({
         site_id: props.site.id,
@@ -85,17 +100,37 @@ async function createTable() {
         created_by: authStore.user?.id,
         status: 'waiting'
       })
-      .select()
+      .select('*, bridge_players(*)')
       .single()
     
     if (error) throw error
     
-    // Rejoindre automatiquement en position Sud
-    await joinTable(data.id, 'S')
+    // Ajouter le joueur à la table
+    const { error: playerError } = await supabase
+      .from('bridge_players')
+      .insert({
+        table_id: tableData.id,
+        user_id: authStore.user?.id,
+        position: 'S',
+        is_ready: false
+      })
+    
+    if (playerError) throw playerError
+    
+    // Mettre à jour l'état local directement
+    currentTable.value = tableData
+    myPosition.value = 'S'
+    
+    // S'abonner aux updates en temps réel
+    subscribeToTable(tableData.id)
+    
     showCreateModal.value = false
     newTableName.value = ''
+    
+    console.log('Table créée et rejoint:', tableData.name)
   } catch (err) {
     console.error('Erreur création table:', err)
+    alert('Erreur lors de la création: ' + err.message)
   }
 }
 
@@ -107,9 +142,14 @@ async function joinTable(tableId, position) {
       .select('*')
       .eq('table_id', tableId)
       .eq('position', position)
-      .single()
+      .maybeSingle()
     
     if (existing) {
+      // Si c'est nous qui sommes déjà là, on rejoint directement
+      if (existing.user_id === authStore.user?.id) {
+        await enterTable(tableId, position)
+        return
+      }
       alert('Cette position est déjà prise !')
       return
     }
@@ -125,14 +165,33 @@ async function joinTable(tableId, position) {
     
     if (error) throw error
     
-    currentTable.value = tables.value.find(t => t.id === tableId)
-    myPosition.value = position
-    
-    // S'abonner aux updates en temps réel
-    subscribeToTable(tableId)
+    await enterTable(tableId, position)
   } catch (err) {
     console.error('Erreur rejoindre table:', err)
+    alert('Erreur: ' + err.message)
   }
+}
+
+// Entrer sur une table (afficher la vue table)
+async function enterTable(tableId, position) {
+  const { data: tableData, error } = await supabase
+    .from('bridge_tables')
+    .select('*, bridge_players(*)')
+    .eq('id', tableId)
+    .single()
+  
+  if (error) {
+    console.error('Erreur chargement table:', error)
+    return
+  }
+  
+  currentTable.value = tableData
+  myPosition.value = position
+  
+  // S'abonner aux updates en temps réel
+  subscribeToTable(tableId)
+  
+  console.log('Entré sur la table:', tableData.name, 'position:', position)
 }
 
 async function leaveTable() {
@@ -251,7 +310,7 @@ onMounted(() => {
       </div>
       
       <div v-else class="tables-grid">
-        <div v-for="table in tables" :key="table.id" class="table-card">
+        <div v-for="table in tables" :key="table.id" class="table-card" :class="{ 'my-table': getMyTablePosition(table) }">
           <div class="table-name">{{ table.name }}</div>
           <div class="table-status">{{ table.status === 'waiting' ? 'En attente' : 'En cours' }}</div>
           <div class="table-seats">
@@ -259,8 +318,11 @@ onMounted(() => {
               v-for="pos in ['N', 'E', 'S', 'W']" 
               :key="pos"
               class="seat"
-              :class="{ occupied: table.bridge_players?.find(p => p.position === pos) }"
-              @click="!table.bridge_players?.find(p => p.position === pos) && joinTable(table.id, pos)"
+              :class="{ 
+                occupied: table.bridge_players?.find(p => p.position === pos),
+                'is-me': table.bridge_players?.find(p => p.position === pos && p.user_id === authStore.user?.id)
+              }"
+              @click="joinTable(table.id, pos)"
             >
               {{ pos }}
             </div>
@@ -268,6 +330,14 @@ onMounted(() => {
           <div class="table-players">
             {{ table.bridge_players?.length || 0 }}/4 joueurs
           </div>
+          <!-- Bouton Reprendre si on est déjà à cette table -->
+          <button 
+            v-if="getMyTablePosition(table)" 
+            class="btn-resume"
+            @click="enterTable(table.id, getMyTablePosition(table))"
+          >
+            🎴 Reprendre ({{ getMyTablePosition(table) }})
+          </button>
         </div>
       </div>
     </div>
@@ -536,6 +606,42 @@ onMounted(() => {
   text-align: center;
   font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.6);
+}
+
+.table-card.my-table {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.seat.is-me {
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #1a1a2e !important;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+.btn-resume {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  border: none;
+  border-radius: 0.5rem;
+  color: #1a1a2e;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-resume:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
 }
 
 /* Container de la table */
