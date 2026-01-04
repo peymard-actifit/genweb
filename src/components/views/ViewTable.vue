@@ -473,7 +473,6 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('N')
           }"
         >
-          <span class="video-label">N</span>
           <div class="video-placeholder"></div>
           <div class="video-controls">
             <button @click="toggleVideo('N')" :class="{ off: !videoControls.N.video }">
@@ -496,7 +495,6 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('W')
           }"
         >
-          <span class="video-label">O</span>
           <div class="video-placeholder"></div>
           <div class="video-controls">
             <button @click="toggleVideo('W')" :class="{ off: !videoControls.W.video }">
@@ -519,7 +517,6 @@ onMounted(() => {
             'not-vulnerable': !isVulnerable('E')
           }"
         >
-          <span class="video-label">E</span>
           <div class="video-placeholder"></div>
           <div class="video-controls">
             <button @click="toggleVideo('E')" :class="{ off: !videoControls.E.video }">
@@ -535,6 +532,12 @@ onMounted(() => {
       <!-- Tapis de bridge central -->
       <div class="table-center">
         <div class="table-felt">
+          <!-- Labels d'orientation sur la table (en face de chaque joueur) -->
+          <span class="table-position-label pos-north">N</span>
+          <span class="table-position-label pos-west">O</span>
+          <span class="table-position-label pos-east">E</span>
+          <!-- S n'est pas affiché car c'est le joueur connecté -->
+          
           <!-- Zone des cartes jouées -->
           <div class="trick-area">
             <div class="played-card north-play"></div>
@@ -588,13 +591,6 @@ onMounted(() => {
             </div>
           </div>
           
-          <!-- Direction indicator -->
-          <div class="compass">
-            <span class="compass-n">N</span>
-            <span class="compass-w">O</span>
-            <span class="compass-e">E</span>
-            <span class="compass-s">S</span>
-          </div>
         </div>
         
         <!-- Enchères agrandies (au survol ou sélectionnées) -->
@@ -659,7 +655,6 @@ onMounted(() => {
               'not-vulnerable': !isVulnerable('S')
             }"
           >
-            <span class="video-label">S (Moi)</span>
             <div class="video-placeholder"></div>
             <div class="video-controls">
               <button @click="toggleVideo('S')" :class="{ off: !videoControls.S.video }">
@@ -1000,18 +995,6 @@ onMounted(() => {
   }
 }
 
-.video-label {
-  position: absolute;
-  top: 0.25rem;
-  left: 0.25rem;
-  font-size: 1rem;
-  font-weight: bold;
-  color: white;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 0.15rem 0.4rem;
-  border-radius: 0.25rem;
-  z-index: 10;
-}
 
 .video-placeholder {
   width: 100%;
@@ -1100,24 +1083,40 @@ onMounted(() => {
 .south-play { grid-area: s; justify-self: center; }
 .west-play { grid-area: w; align-self: center; }
 
-.compass {
+/* Labels d'orientation sur la table */
+.table-position-label {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 50%;
-  font-size: 0.7rem;
+  font-size: 1.5rem;
   font-weight: bold;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+  pointer-events: none;
 }
 
-.compass-n { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); }
-.compass-s { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); }
-.compass-e { position: absolute; right: -15px; top: 50%; transform: translateY(-50%); }
-.compass-w { position: absolute; left: -15px; top: 50%; transform: translateY(-50%); }
+.table-position-label.pos-north {
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.table-position-label.pos-south {
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.table-position-label.pos-east {
+  right: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.table-position-label.pos-west {
+  left: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+}
 
 /* ================================
    BOÎTE À ENCHÈRES SUR LA TABLE
