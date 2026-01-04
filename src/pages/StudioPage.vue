@@ -8,6 +8,7 @@ import EditPanel from '@/components/EditPanel.vue'
 import ViewCommon from '@/components/views/ViewCommon.vue'
 import ViewCustom from '@/components/views/ViewCustom.vue'
 import ViewDataExcel from '@/components/views/ViewDataExcel.vue'
+import ViewTable from '@/components/views/ViewTable.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -88,13 +89,16 @@ function goBack() {
     <!-- Zone de travail -->
     <div class="studio-workspace" :class="{ 'panel-open': showEditPanel }">
       <!-- Zone de prévisualisation -->
-      <main class="preview-area" :class="{ 'full-height': activeView?.type === 'calculs' }">
-        <div class="preview-container" :class="{ 'no-padding': activeView?.type === 'calculs' }">
+      <main class="preview-area" :class="{ 'full-height': activeView?.type === 'calculs' || activeView?.type === 'table' }">
+        <div class="preview-container" :class="{ 'no-padding': activeView?.type === 'calculs' || activeView?.type === 'table' }">
           <!-- Vue Commun -->
           <ViewCommon v-if="activeView?.type === 'common'" :site="site" :view="activeView" />
           
           <!-- Vue Calculs -->
           <ViewDataExcel v-else-if="activeView?.type === 'calculs'" :site="site" :view="activeView" />
+          
+          <!-- Vue Table (Bridge) -->
+          <ViewTable v-else-if="activeView?.type === 'table'" :site="site" :view="activeView" />
           
           <!-- Vue Custom (média, gestion, custom) -->
           <ViewCustom v-else :site="site" :view="activeView" />

@@ -27,6 +27,7 @@ const viewTypes = [
   { type: 'calculs', name: 'Calculs', icon: '🧮', description: 'Import données + calculs IA' },
   { type: 'media', name: 'Médias', icon: '🖼️', description: 'Photos, vidéos, fichiers' },
   { type: 'gestion', name: 'Gestion', icon: '📊', description: 'Données et activités' },
+  { type: 'table', name: 'Table', icon: '🎴', description: 'Jeu de bridge en ligne' },
   { type: 'custom', name: 'Personnalisée', icon: '✨', description: 'Vue libre' }
 ]
 
@@ -65,6 +66,7 @@ async function addView(viewType) {
         <span class="tab-icon" v-else-if="view.type === 'calculs'">🧮</span>
         <span class="tab-icon" v-else-if="view.type === 'media'">🖼️</span>
         <span class="tab-icon" v-else-if="view.type === 'gestion'">📊</span>
+        <span class="tab-icon" v-else-if="view.type === 'table'">🎴</span>
         <span class="tab-icon" v-else>✨</span>
         <span class="tab-name">{{ view.name }}</span>
       </button>
