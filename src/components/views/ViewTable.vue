@@ -27,13 +27,28 @@ const myPosition = ref(null) // 'S', 'W', 'N', 'E'
 const myCards = ref([])
 
 // État du jeu
-const currentPhase = ref('playing') // 'waiting', 'bidding', 'playing'
+const currentPhase = ref('bidding') // 'waiting', 'bidding', 'playing', 'finished'
 const currentDealNumber = ref(1)
 const currentDealer = ref('N') // Donneur de la donne en cours
-const currentTurn = ref('S') // À qui c'est de jouer/enchérir
-const bids = ref([])
-const declarer = ref('S')
-const contract = ref('4♠')
+const currentTurn = ref('N') // À qui c'est de jouer/enchérir (le donneur commence les enchères)
+const bids = ref([]) // Liste des enchères: { position, bid, timestamp }
+const declarer = ref(null) // Le déclarant
+const leader = ref(null) // L'entameur (à gauche du déclarant)
+const contract = ref(null) // Le contrat final (ex: '4♠')
+const contractLevel = ref(null) // Niveau du contrat (1-7)
+const contractSuit = ref(null) // Couleur du contrat (♠, ♥, ♦, ♣, SA)
+const isDoubled = ref(false)
+const isRedoubled = ref(false)
+const consecutivePasses = ref(0) // Compteur de passes consécutifs
+const lastRealBid = ref(null) // Dernière enchère non-passe
+
+// Cartes de tous les joueurs (pour l'affichage final)
+const allHands = ref({
+  N: [],
+  E: [],
+  S: [],
+  W: []
+})
 
 // Cartes jouées dans le pli en cours (devant chaque joueur)
 const currentTrickCards = ref({
@@ -44,25 +59,92 @@ const currentTrickCards = ref({
 })
 
 // Plis gagnés par le joueur (NS)
-// Chaque pli: { won: true/false, cards: [...] }
 const myTricks = ref([])
 const tricksWonNS = ref(0)
 const tricksWonEW = ref(0)
+const tricksPlayed = ref(0)
 
-// Pour la démo, simuler des cartes jouées
+// Rotation des joueurs (sens horaire)
+const nextPlayer = { 'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N' }
+const previousPlayer = { 'N': 'W', 'E': 'N', 'S': 'E', 'W': 'S' }
+
+// Vérifie si les enchères sont terminées
+function checkBiddingEnd() {
+  if (bids.value.length < 4) return false
+  
+  // 4 passes consécutifs = tout le monde passe, pas de contrat
+  if (consecutivePasses.value >= 4 && !lastRealBid.value) {
+    return true
+  }
+  
+  // 3 passes après une enchère = contrat trouvé
+  if (consecutivePasses.value >= 3 && lastRealBid.value) {
+    return true
+  }
+  
+  return false
+}
+
+// Détermine le déclarant (premier du camp à avoir nommé la couleur du contrat)
+function findDeclarer() {
+  if (!lastRealBid.value) return null
+  
+  const contractSuitValue = contractSuit.value
+  const winningCamp = (lastRealBid.value.position === 'N' || lastRealBid.value.position === 'S') ? ['N', 'S'] : ['E', 'W']
+  
+  // Trouver le premier joueur du camp gagnant à avoir nommé cette couleur
+  for (const bid of bids.value) {
+    if (winningCamp.includes(bid.position) && bid.bid !== 'Passe' && bid.bid !== 'Contre' && bid.bid !== 'Surcontre') {
+      const bidSuit = bid.bid.length > 1 ? bid.bid.substring(1) : null
+      if (bidSuit === contractSuitValue) {
+        return bid.position
+      }
+    }
+  }
+  
+  return lastRealBid.value.position
+}
+
+// Termine les enchères et passe au jeu de la carte
+function endBidding() {
+  if (!lastRealBid.value) {
+    // Tous passent - pas de contrat
+    contract.value = 'Passé'
+    currentPhase.value = 'finished'
+    return
+  }
+  
+  // Extraire le contrat
+  contractLevel.value = parseInt(lastRealBid.value.bid[0])
+  contractSuit.value = lastRealBid.value.bid.substring(1)
+  contract.value = lastRealBid.value.bid + (isDoubled.value ? ' X' : '') + (isRedoubled.value ? ' XX' : '')
+  
+  // Trouver le déclarant
+  declarer.value = findDeclarer()
+  
+  // L'entameur est à gauche du déclarant
+  leader.value = nextPlayer[declarer.value]
+  currentTurn.value = leader.value
+  
+  // Passer à la phase de jeu
+  currentPhase.value = 'playing'
+  
+  console.log(`Contrat: ${contract.value}, Déclarant: ${declarer.value}, Entame: ${leader.value}`)
+}
+
+// Simuler des cartes jouées pour la démo
 function simulateTrickCards() {
-  // Simuler des cartes jouées par les autres joueurs
   currentTrickCards.value = {
     N: { rank: 'K', suit: '♠' },
     E: { rank: '10', suit: '♠' },
-    S: null, // C'est au Sud de jouer
+    S: null,
     W: { rank: '5', suit: '♠' }
   }
 }
 
-// Collecter le pli (quand les 4 cartes sont jouées)
+// Collecter le pli
 function collectTrick(winner) {
-  const isWon = winner === 'N' || winner === 'S' // NS a gagné
+  const isWon = winner === 'N' || winner === 'S'
   
   myTricks.value.push({
     won: isWon,
@@ -75,8 +157,49 @@ function collectTrick(winner) {
     tricksWonEW.value++
   }
   
-  // Réinitialiser le pli
+  tricksPlayed.value++
+  
+  // Vérifier si le coup est terminé (13 plis)
+  if (tricksPlayed.value >= 13) {
+    endDeal()
+    return
+  }
+  
+  // Le gagnant du pli joue en premier
+  currentTurn.value = winner
   currentTrickCards.value = { N: null, E: null, S: null, W: null }
+}
+
+// Fin du coup - afficher les 4 jeux
+function endDeal() {
+  currentPhase.value = 'finished'
+  console.log(`Fin du coup - NS: ${tricksWonNS.value}, EW: ${tricksWonEW.value}`)
+}
+
+// Passer à la donne suivante
+function nextDeal() {
+  currentDealNumber.value++
+  currentDealer.value = nextPlayer[currentDealer.value]
+  currentTurn.value = currentDealer.value
+  currentPhase.value = 'bidding'
+  
+  // Réinitialiser l'état
+  bids.value = []
+  contract.value = null
+  declarer.value = null
+  leader.value = null
+  consecutivePasses.value = 0
+  lastRealBid.value = null
+  isDoubled.value = false
+  isRedoubled.value = false
+  currentTrickCards.value = { N: null, E: null, S: null, W: null }
+  myTricks.value = []
+  tricksWonNS.value = 0
+  tricksWonEW.value = 0
+  tricksPlayed.value = 0
+  
+  // Redistribuer les cartes
+  myCards.value = generateDemoHand()
 }
 
 // Vulnérabilité par camp (NS = Nord-Sud, EW = Est-Ouest)
@@ -376,21 +499,43 @@ async function makeBid(bid) {
     return
   }
   
-  console.log('Enchère:', bid)
+  console.log('Enchère:', bid, 'par', myPosition.value)
   
-  // Ajouter l'enchère à la liste locale
+  // Ajouter l'enchère à la liste
   bids.value.push({
     position: myPosition.value,
     bid: bid,
     timestamp: new Date()
   })
   
-  // Passer au joueur suivant (sens horaire: N -> E -> S -> W -> N)
-  const nextPlayer = { 'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N' }
+  // Gérer les passes et les enchères
+  if (bid === 'Passe') {
+    consecutivePasses.value++
+  } else if (bid === 'Contre') {
+    consecutivePasses.value = 0
+    isDoubled.value = true
+    isRedoubled.value = false
+  } else if (bid === 'Surcontre') {
+    consecutivePasses.value = 0
+    isRedoubled.value = true
+  } else {
+    // Enchère normale (1♣, 2SA, etc.)
+    consecutivePasses.value = 0
+    lastRealBid.value = { position: myPosition.value, bid: bid }
+    isDoubled.value = false
+    isRedoubled.value = false
+  }
+  
+  // Vérifier si les enchères sont terminées
+  if (checkBiddingEnd()) {
+    endBidding()
+    return
+  }
+  
+  // Passer au joueur suivant
   currentTurn.value = nextPlayer[currentTurn.value]
   
-  // TODO: Sauvegarder en BDD et vérifier si les enchères sont terminées
-  // await saveBidToDatabase(bid)
+  // TODO: Sauvegarder en BDD
 }
 
 // Ordre de jeu pour une donne
@@ -439,17 +584,12 @@ onMounted(() => {
   fetchTables()
   // Générer une main de démo
   myCards.value = generateDemoHand()
-  // Simuler des cartes jouées pour la démo
-  simulateTrickCards()
-  // Simuler quelques plis pour la démo
-  myTricks.value = [
-    { won: true, cards: {} },
-    { won: true, cards: {} },
-    { won: false, cards: {} },
-    { won: true, cards: {} },
-  ]
-  tricksWonNS.value = 3
-  tricksWonEW.value = 1
+  // Position du joueur connecté
+  myPosition.value = 'S'
+  // Démarrer en phase d'enchères, le donneur (N) commence
+  currentPhase.value = 'bidding'
+  currentDealer.value = 'N'
+  currentTurn.value = 'N'
 })
 </script>
 
@@ -506,15 +646,25 @@ onMounted(() => {
     
     <!-- Vue du tapis de bridge plein écran -->
     <div v-else class="bridge-fullscreen">
-      <!-- Header compact avec numéro de donne -->
+      <!-- Header compact avec numéro de donne et contrat -->
       <div class="table-header">
         <div class="deal-info">
           <span class="deal-number">Donne {{ currentDealNumber }}</span>
           <span class="dealer-info">Donneur: {{ currentDealer }}</span>
+          <span v-if="contract" class="contract-info">
+            Contrat: <strong>{{ contract }}</strong>
+            <span v-if="declarer"> par {{ declarer }}</span>
+          </span>
         </div>
         <button class="btn-leave" @click="leaveTable">← Quitter</button>
         <h3>{{ currentTable.name }}</h3>
-        <span class="phase-badge">{{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : 'Jeu' }}</span>
+        <span class="phase-badge" :class="{ 
+          'phase-bidding': currentPhase === 'bidding',
+          'phase-playing': currentPhase === 'playing',
+          'phase-finished': currentPhase === 'finished'
+        }">
+          {{ currentPhase === 'waiting' ? 'En attente' : currentPhase === 'bidding' ? 'Enchères' : currentPhase === 'playing' ? 'Jeu de la carte' : 'Fin du coup' }}
+        </span>
       </div>
       
       <!-- Zone vidéo NORD (haut de l'écran) -->
@@ -656,9 +806,20 @@ onMounted(() => {
           </div>
           
           <!-- Score des plis -->
-          <div v-if="currentPhase === 'playing'" class="tricks-score">
+          <div v-if="currentPhase === 'playing' || currentPhase === 'finished'" class="tricks-score">
             <span class="score-ns">NS: {{ tricksWonNS }}</span>
             <span class="score-ew">EW: {{ tricksWonEW }}</span>
+          </div>
+          
+          <!-- Affichage des 4 jeux à la fin du coup -->
+          <div v-if="currentPhase === 'finished'" class="all-hands-display">
+            <div class="final-message">
+              <div class="result-title">Fin du coup</div>
+              <div class="result-score">NS: {{ tricksWonNS }} plis - EW: {{ tricksWonEW }} plis</div>
+              <button class="btn-next-deal" @click="nextDeal">
+                Donne suivante →
+              </button>
+            </div>
           </div>
           
           <!-- Boîte à enchères (seulement pendant les enchères) -->
@@ -1006,6 +1167,17 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.6);
 }
 
+.contract-info {
+  font-size: 0.9rem;
+  color: #4ade80;
+  margin-top: 0.1rem;
+}
+
+.contract-info strong {
+  color: #fbbf24;
+  font-size: 1rem;
+}
+
 .btn-leave {
   padding: 0.4rem 0.8rem;
   background: rgba(255, 255, 255, 0.1);
@@ -1028,6 +1200,18 @@ onMounted(() => {
   font-size: 0.75rem;
   font-weight: 600;
   color: #1a1a2e;
+}
+
+.phase-badge.phase-bidding {
+  background: #fbbf24;
+}
+
+.phase-badge.phase-playing {
+  background: #4ade80;
+}
+
+.phase-badge.phase-finished {
+  background: #a855f7;
 }
 
 /* ================================
@@ -1334,6 +1518,55 @@ onMounted(() => {
 
 .tricks-score .score-ew {
   color: #f87171;
+}
+
+/* Affichage final du coup */
+.all-hands-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 20;
+}
+
+.final-message {
+  background: rgba(30, 41, 59, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.result-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #fbbf24;
+  margin-bottom: 1rem;
+}
+
+.result-score {
+  font-size: 1.1rem;
+  color: white;
+  margin-bottom: 1.5rem;
+}
+
+.btn-next-deal {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  border: none;
+  border-radius: 0.5rem;
+  color: #1a1a2e;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-next-deal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
 }
 
 /* ================================
