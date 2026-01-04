@@ -1994,14 +1994,14 @@ onUnmounted(() => {
   aspect-ratio: 1.3;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   box-shadow: 
     0 30px 60px rgba(0, 0, 0, 0.6),
     0 10px 20px rgba(0, 0, 0, 0.4),
     inset 0 0 80px rgba(0, 0, 0, 0.4),
     inset 0 -20px 40px rgba(0, 0, 0, 0.3);
-  border: 12px solid #5c3d2e;
-  border-bottom-width: 20px;
+  border: 3px solid #5c3d2e;
+  border-bottom-width: 5px;
   position: relative;
   transform: rotateX(20deg);
   transform-style: preserve-3d;
@@ -2011,12 +2011,12 @@ onUnmounted(() => {
 .table-felt::before {
   content: '';
   position: absolute;
-  top: -12px;
-  left: -12px;
-  right: -12px;
-  height: 20px;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  height: 6px;
   background: linear-gradient(to bottom, #8b6914, #5c3d2e);
-  border-radius: 1rem 1rem 0 0;
+  border-radius: 0.5rem 0.5rem 0 0;
 }
 
 
