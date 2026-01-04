@@ -1713,8 +1713,8 @@ onUnmounted(() => {
     "west center east"
     "west center east"
     "bottom bottom bottom";
-  grid-template-rows: auto 100px 1fr 160px;
-  grid-template-columns: 140px 1fr 140px;
+  grid-template-rows: auto 80px 1fr 180px;
+  grid-template-columns: 100px 1fr 100px;
   background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
   overflow: hidden;
 }
@@ -1984,16 +1984,16 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem;
-  gap: 0.5rem;
-  perspective: 1000px;
+  padding: 0.25rem;
+  gap: 0.25rem;
+  perspective: 1200px;
 }
 
 .table-felt {
   width: 100%;
-  max-width: 600px;
-  min-height: 350px;
-  aspect-ratio: 1.3;
+  max-width: 800px;
+  min-height: 400px;
+  aspect-ratio: 1.4;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 0.5rem;
@@ -2005,7 +2005,7 @@ onUnmounted(() => {
   border: 3px solid #5c3d2e;
   border-bottom-width: 5px;
   position: relative;
-  transform: rotateX(20deg);
+  transform: rotateX(15deg);
   transform-style: preserve-3d;
 }
 
@@ -2108,20 +2108,20 @@ onUnmounted(() => {
 
 /* Cartons d'enchères réalistes - style Bridge Partner */
 .bid-card {
-  width: 32px;
-  height: 24px;
+  width: 44px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
-  font-size: 0.7rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
   font-weight: 800;
   box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.5),
+    0 3px 6px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   animation: bid-appear 0.3s ease-out;
   white-space: nowrap;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 /* Cartons O et E en colonne */
@@ -2367,14 +2367,14 @@ onUnmounted(() => {
 
 /* ================================
    BOÎTE À ENCHÈRES RÉALISTE (style Bridge Partner)
+   Positionnée en bas à droite de l'écran, pas sur la table
    ================================ */
 .bidding-box-3d {
-  position: absolute;
-  bottom: 8%;
-  right: 8%;
-  transform: rotateX(-5deg) scale(0.9);
-  z-index: 10;
-  transform-style: preserve-3d;
+  position: fixed;
+  bottom: 190px;
+  right: 20px;
+  transform: none;
+  z-index: 100;
 }
 
 /* Couvercle de la boîte - style bois vernis */
@@ -2421,11 +2421,11 @@ onUnmounted(() => {
 
 /* Cartons d'enchères réalistes - style plastifié blanc */
 .bidding-box-3d .bid-btn {
-  width: 28px;
-  height: 22px;
+  width: 36px;
+  height: 28px;
   border: 1px solid #ccc;
-  border-radius: 2px;
-  font-size: 0.55rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
   font-weight: 800;
   cursor: pointer;
   background: linear-gradient(180deg, #ffffff 0%, #f5f5f5 50%, #e8e8e8 100%);
@@ -2769,31 +2769,35 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H visibles à droite des cartes */
+/* Points H bien visibles à droite des cartes */
 .hand-points-right {
   position: absolute;
-  right: -60px;
-  bottom: 30px;
+  right: -80px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 4px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(30, 30, 30, 0.9));
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 2px solid #fbbf24;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .hand-points-right .points-value {
-  font-size: 1.3rem;
+  font-size: 1.8rem;
   font-weight: bold;
   color: #fbbf24;
   line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hand-points-right .points-label {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 600;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  font-weight: 700;
+  opacity: 0.8;
 }
 
 /* Ancien style (compatibilité) */
