@@ -101,6 +101,47 @@ function calculateHandPoints(hand) {
 // Points du joueur connecté
 const myHandPoints = computed(() => calculateHandPoints(myCards.value))
 
+// Ordre des couleurs alternées (noir-rouge-noir-rouge) - standard bridge
+const suitOrder = { '♠': 0, '♥': 1, '♣': 2, '♦': 3 }
+const rankOrder = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 }
+
+// Cartes triées par couleur alternée puis par rang décroissant
+const sortedMyCards = computed(() => {
+  return [...myCards.value].sort((a, b) => {
+    if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+      return suitOrder[a.suit] - suitOrder[b.suit]
+    }
+    return rankOrder[b.rank] - rankOrder[a.rank]
+  })
+})
+
+// Le mort (dummy) = partenaire du déclarant
+const dummy = computed(() => {
+  if (!declarer.value) return null
+  const partnerMap = { 'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E' }
+  return partnerMap[declarer.value]
+})
+
+// Cartes du mort triées
+const dummyCards = computed(() => {
+  if (!dummy.value || !allHands.value[dummy.value]) return []
+  return [...allHands.value[dummy.value]].sort((a, b) => {
+    if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+      return suitOrder[a.suit] - suitOrder[b.suit]
+    }
+    return rankOrder[b.rank] - rankOrder[a.rank]
+  })
+})
+
+// Est-ce que le joueur connecté est le déclarant ?
+const isDeclarer = computed(() => myPosition.value === declarer.value)
+
+// Est-ce que c'est au mort de jouer ?
+const isDummyTurn = computed(() => currentTurn.value === dummy.value)
+
+// Le joueur connecté peut-il jouer pour le mort ?
+const canPlayForDummy = computed(() => isDeclarer.value && isDummyTurn.value)
+
 // Style pour l'arc de cercle des cartes
 function getCardArcStyle(index, totalCards) {
   const middleIndex = (totalCards - 1) / 2
@@ -1080,6 +1121,36 @@ function playCard(card) {
   processPlayCard(myPosition.value, card)
 }
 
+// Jouer une carte pour le mort (quand on est déclarant)
+function playDummyCard(card) {
+  if (currentPhase.value !== 'playing') return
+  if (!canPlayForDummy.value) {
+    console.log('Vous ne pouvez pas jouer pour le mort')
+    return
+  }
+  
+  // Vérifier la couleur demandée
+  const playOrder = getPlayOrder()
+  let leadSuit = null
+  for (const pos of playOrder) {
+    if (currentTrickCards.value[pos]) {
+      leadSuit = currentTrickCards.value[pos].suit
+      break
+    }
+  }
+  
+  if (leadSuit && card.suit !== leadSuit) {
+    const dummyHasLeadSuit = allHands.value[dummy.value].some(c => c.suit === leadSuit)
+    if (dummyHasLeadSuit) {
+      console.log('Le mort doit fournir à la couleur:', leadSuit)
+      return
+    }
+  }
+  
+  console.log('Jouer carte du mort:', card.rank + card.suit)
+  processPlayCard(dummy.value, card)
+}
+
 async function makeBid(bid) {
   if (currentPhase.value !== 'bidding') return
   if (currentTurn.value !== myPosition.value) {
@@ -1416,7 +1487,38 @@ onUnmounted(() => {
             </div>
           </div>
           
-          <!-- Plis du joueur (NS) - empilés comme au bridge -->
+          <!-- Infos en haut à gauche de la table -->
+          <div class="table-top-left-info">
+            <div class="deal-number-table">Donne {{ currentDealNumber }}</div>
+            <div v-if="currentPhase === 'playing' || currentPhase === 'finished'" class="tricks-score-inline">
+              <span class="score-ns">NS: {{ tricksWonNS }}</span>
+              <span class="score-ew">EW: {{ tricksWonEW }}</span>
+            </div>
+          </div>
+          
+          <!-- Jeu du mort (dummy) étalé sur la table pendant le jeu -->
+          <div v-if="currentPhase === 'playing' && dummy && dummyCards.length > 0" 
+               class="dummy-hand-display"
+               :class="'dummy-' + dummy">
+            <div class="dummy-label">{{ dummy }} (Mort)</div>
+            <div class="dummy-cards">
+              <div 
+                v-for="(card, index) in dummyCards" 
+                :key="card.id"
+                class="dummy-card"
+                :class="{ 
+                  'suit-red': card.suit === '♥' || card.suit === '♦',
+                  'can-play': canPlayForDummy && isCardPlayable(card)
+                }"
+                @click="canPlayForDummy && playDummyCard(card)"
+              >
+                <span class="card-rank">{{ card.rank }}</span>
+                <span class="card-suit">{{ card.suit }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Plis du joueur (NS) - empilés comme au bridge - EN HAUT À GAUCHE -->
           <div class="my-tricks-zone">
             <div 
               v-for="(trick, index) in myTricks" 
@@ -1427,12 +1529,6 @@ onUnmounted(() => {
             >
               <div class="trick-card"></div>
             </div>
-          </div>
-          
-          <!-- Score des plis -->
-          <div v-if="currentPhase === 'playing' || currentPhase === 'finished'" class="tricks-score">
-            <span class="score-ns">NS: {{ tricksWonNS }}</span>
-            <span class="score-ew">EW: {{ tricksWonEW }}</span>
           </div>
           
           <!-- Affichage des 4 jeux à la fin du coup -->
@@ -1544,7 +1640,7 @@ onUnmounted(() => {
         <div class="my-hand-zone">
           <div class="my-hand-arc">
             <div 
-              v-for="(card, index) in myCards" 
+              v-for="(card, index) in sortedMyCards" 
               :key="card.id"
               class="card-perspective"
               :class="{ 
@@ -1552,7 +1648,7 @@ onUnmounted(() => {
                 'can-play': isCardPlayable(card),
                 'not-playable': shouldCardBeGreyed(card)
               }"
-              :style="getCardArcStyle(index, myCards.length)"
+              :style="getCardArcStyle(index, sortedMyCards.length)"
               @click="playCard(card)"
             >
               <div class="card-face">
@@ -2062,9 +2158,10 @@ onUnmounted(() => {
 }
 
 .table-felt {
-  width: 100%;
+  width: auto;
   height: 100%;
   aspect-ratio: 1;
+  max-width: 70vw;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 0.5rem;
@@ -2346,12 +2443,53 @@ onUnmounted(() => {
 }
 
 /* ================================
-   PLIS DU JOUEUR (comme au bridge) - À GAUCHE
+   INFOS EN HAUT À GAUCHE DE LA TABLE
+   ================================ */
+.table-top-left-info {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deal-number-table {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fbbf24;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.tricks-score-inline {
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.tricks-score-inline .score-ns {
+  color: #4ade80;
+}
+
+.tricks-score-inline .score-ew {
+  color: #f87171;
+}
+
+/* ================================
+   PLIS DU JOUEUR (comme au bridge) - EN HAUT À GAUCHE
    ================================ */
 .my-tricks-zone {
   position: absolute;
-  bottom: 5%;
-  left: 5%;
+  top: 60px;
+  left: 8px;
   display: flex;
   gap: 2px;
 }
@@ -2380,24 +2518,99 @@ onUnmounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Score des plis */
-.tricks-score {
+/* ================================
+   JEU DU MORT (DUMMY) SUR LA TABLE
+   ================================ */
+.dummy-hand-display {
   position: absolute;
-  top: 5%;
-  right: 5%;
+  z-index: 12;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+  align-items: center;
+  gap: 4px;
+}
+
+.dummy-hand-display.dummy-N {
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dummy-hand-display.dummy-S {
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dummy-hand-display.dummy-E {
+  right: 15%;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: row-reverse;
+}
+
+.dummy-hand-display.dummy-W {
+  left: 15%;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: row;
+}
+
+.dummy-label {
+  font-size: 0.7rem;
   font-weight: bold;
+  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
-.tricks-score .score-ns {
-  color: #4ade80;
+.dummy-cards {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 200px;
 }
 
-.tricks-score .score-ew {
-  color: #f87171;
+.dummy-card {
+  width: 32px;
+  height: 44px;
+  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
+  border: 1px solid #999;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #000;
+  cursor: default;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dummy-card.suit-red {
+  color: #dc143c;
+}
+
+.dummy-card.can-play {
+  cursor: pointer;
+  border: 2px solid #3b82f6;
+}
+
+.dummy-card.can-play:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 12px rgba(59, 130, 246, 0.5);
+}
+
+.dummy-card .card-rank {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.dummy-card .card-suit {
+  font-size: 0.65rem;
 }
 
 /* Affichage final du coup */
