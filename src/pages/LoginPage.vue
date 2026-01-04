@@ -1,10 +1,14 @@
 <script setup>
+/**
+ * Page de connexion / inscription
+ * Affiche la version de l'application
+ */
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-// Version de l'application
-const appVersion = __APP_VERSION__
+// Version de l'application (définie dans vite.config.js)
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?.?.?'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -174,7 +178,7 @@ function toggleMode() {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .logo-icon {
@@ -190,10 +194,10 @@ function toggleMode() {
 
 .version {
   display: block;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: -0.5rem;
-  margin-bottom: 1rem;
+  font-size: 0.7rem;
+  color: #999;
+  margin-bottom: 1.5rem;
+  letter-spacing: 0.5px;
 }
 
 .login-header h1 {
