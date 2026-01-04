@@ -1005,6 +1005,34 @@ function subscribeToTable(tableId) {
     .subscribe()
 }
 
+// Vérifier si une carte est jouable
+function isCardPlayable(card) {
+  // Pas pendant les enchères
+  if (currentPhase.value !== 'playing') return false
+  // Pas mon tour
+  if (currentTurn.value !== myPosition.value) return false
+  
+  // Déterminer la couleur d'entame
+  const playOrder = getPlayOrder()
+  let leadSuit = null
+  for (const pos of playOrder) {
+    if (currentTrickCards.value[pos]) {
+      leadSuit = currentTrickCards.value[pos].suit
+      break
+    }
+  }
+  
+  // Si pas de couleur d'entame (premier à jouer), toutes les cartes sont jouables
+  if (!leadSuit) return true
+  
+  // Si la carte est de la couleur demandée, jouable
+  if (card.suit === leadSuit) return true
+  
+  // Si le joueur n'a pas la couleur demandée, toutes ses cartes sont jouables
+  const hasLeadSuit = myCards.value.some(c => c.suit === leadSuit)
+  return !hasLeadSuit
+}
+
 // Fonctions de jeu
 function playCard(card) {
   if (currentPhase.value !== 'playing') return
@@ -1490,6 +1518,12 @@ onUnmounted(() => {
           </div>
         </div>
         
+        <!-- Points H entre chat et cartes -->
+        <div class="hand-points-center">
+          <span class="points-value">{{ myHandPoints }}</span>
+          <span class="points-label">H</span>
+        </div>
+        
         <!-- Cartes du joueur (centre) - Arc de cercle en perspective -->
         <div class="my-hand-zone">
           <div class="my-hand-arc">
@@ -1499,10 +1533,11 @@ onUnmounted(() => {
               class="card-perspective"
               :class="{ 
                 'suit-red': card.suit === '♥' || card.suit === '♦',
-                'can-play': currentTurn === myPosition && currentPhase === 'playing'
+                'can-play': isCardPlayable(card),
+                'not-playable': !isCardPlayable(card) && currentPhase === 'playing'
               }"
               :style="getCardArcStyle(index, myCards.length)"
-              @click="playCard(card)"
+              @click="isCardPlayable(card) && playCard(card)"
             >
               <div class="card-face">
                 <span class="card-rank">{{ card.rank }}</span>
@@ -1510,11 +1545,7 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <!-- Points H (honneurs) à gauche du jeu -->
-          <div class="hand-points-left">
-            <span class="points-value">{{ myHandPoints }}</span>
-            <span class="points-label">H</span>
-          </div>
+        </div>
         </div>
         
         <!-- Ma vidéo (droite) - avec vraie caméra -->
@@ -2274,25 +2305,33 @@ onUnmounted(() => {
 .played-card-large .card-rank {
   font-size: 1.3rem;
   font-weight: bold;
-  color: #1a1a2e;
+  color: #000000;
 }
 
 .played-card-large .card-suit {
   font-size: 1.6rem;
+  color: #000000;
 }
 
+/* Cartes rouges (cœur, carreau) */
 .played-card-large.suit-red .card-rank,
 .played-card-large.suit-red .card-suit {
   color: #dc2626;
 }
 
+/* Cartes noires (pique, trèfle) - noir bien visible */
+.played-card-large:not(.suit-red) .card-rank,
+.played-card-large:not(.suit-red) .card-suit {
+  color: #000000;
+}
+
 /* ================================
-   PLIS DU JOUEUR (comme au bridge)
+   PLIS DU JOUEUR (comme au bridge) - À GAUCHE
    ================================ */
 .my-tricks-zone {
   position: absolute;
   bottom: 5%;
-  right: 5%;
+  left: 5%;
   display: flex;
   gap: 2px;
 }
@@ -2391,15 +2430,14 @@ onUnmounted(() => {
 }
 
 /* ================================
-   BOÎTE À ENCHÈRES RÉALISTE (style Bridge Partner)
-   Petite, en bas au centre-gauche pour ne pas masquer les enchères Est
+   BOÎTE À ENCHÈRES - Très petite, à DROITE sur la table
    ================================ */
 .bidding-box-3d {
   position: fixed;
-  bottom: 10px;
-  left: 200px;
-  transform: scale(0.75);
-  transform-origin: bottom left;
+  bottom: 200px;
+  right: 120px;
+  transform: scale(0.55);
+  transform-origin: bottom right;
   z-index: 100;
 }
 
@@ -2736,23 +2774,46 @@ onUnmounted(() => {
     rotateX(-10deg);
 }
 
+/* Survol amélioré - carte bien visible */
 .card-perspective:hover {
   transform: 
     translateX(var(--card-translate-x, 0))
-    translateY(-50px)
+    translateY(-60px)
     rotateZ(0deg)
     rotateX(0deg)
-    scale(1.2);
-  z-index: 100 !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    scale(1.4);
+  z-index: 200 !important;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
 }
 
+/* Carte jouable */
 .card-perspective.can-play {
   cursor: pointer;
+  border-color: #22c55e;
 }
 
 .card-perspective.can-play:hover {
-  box-shadow: 0 20px 40px rgba(74, 222, 128, 0.6), 0 0 30px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 25px 50px rgba(74, 222, 128, 0.7), 0 0 40px rgba(74, 222, 128, 0.5);
+  border-color: #4ade80;
+}
+
+/* Carte NON jouable (grisée) */
+.card-perspective.not-playable {
+  filter: grayscale(60%) brightness(0.7);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.card-perspective.not-playable:hover {
+  transform: 
+    translateX(var(--card-translate-x, 0))
+    translateY(calc(var(--card-translate-y, 0) - 20px))
+    rotateZ(var(--card-rotation, 0deg))
+    rotateX(-10deg);
+  z-index: inherit;
+  box-shadow: 
+    0 8px 16px rgba(0, 0, 0, 0.4),
+    0 2px 0 rgba(255, 255, 255, 0.8) inset;
 }
 
 .card-face {
@@ -2795,29 +2856,27 @@ onUnmounted(() => {
   text-shadow: none;
 }
 
-/* Points H bien visibles à GAUCHE des cartes */
-.hand-points-left {
-  position: absolute;
-  left: -70px;
-  bottom: 40px;
+/* Points H au CENTRE entre chat et cartes */
+.hand-points-center {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: rgba(0, 0, 0, 0.85);
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
   border: 2px solid #fbbf24;
+  margin-right: 20px;
 }
 
-.hand-points-left .points-value {
-  font-size: 1.5rem;
+.hand-points-center .points-value {
+  font-size: 1.6rem;
   font-weight: bold;
   color: #fbbf24;
   line-height: 1;
 }
 
-.hand-points-left .points-label {
-  font-size: 0.8rem;
+.hand-points-center .points-label {
+  font-size: 0.9rem;
   color: #fbbf24;
   font-weight: 600;
 }
