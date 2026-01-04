@@ -2279,16 +2279,17 @@ onUnmounted(() => {
 }
 
 .played-card-large {
-  width: 55px;
-  height: 77px;
+  width: 70px;
+  height: 98px;
   background: white;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   animation: card-appear 0.3s ease-out;
+  border: 2px solid #ccc;
 }
 
 @keyframes card-appear {
@@ -2303,26 +2304,28 @@ onUnmounted(() => {
 }
 
 .played-card-large .card-rank {
-  font-size: 1.3rem;
-  font-weight: bold;
+  font-size: 1.8rem;
+  font-weight: 900;
   color: #000000;
+  line-height: 1;
 }
 
 .played-card-large .card-suit {
-  font-size: 1.6rem;
+  font-size: 2.2rem;
   color: #000000;
+  line-height: 1;
 }
 
 /* Cartes rouges (cœur, carreau) */
 .played-card-large.suit-red .card-rank,
 .played-card-large.suit-red .card-suit {
-  color: #dc2626;
+  color: #dc2626 !important;
 }
 
 /* Cartes noires (pique, trèfle) - noir bien visible */
 .played-card-large:not(.suit-red) .card-rank,
 .played-card-large:not(.suit-red) .card-suit {
-  color: #000000;
+  color: #000000 !important;
 }
 
 /* ================================
@@ -2797,11 +2800,12 @@ onUnmounted(() => {
   border-color: #4ade80;
 }
 
-/* Carte NON jouable (grisée) */
+/* Carte NON jouable (grisée) - IMPORTANT */
 .card-perspective.not-playable {
-  filter: grayscale(60%) brightness(0.7);
-  cursor: not-allowed;
-  opacity: 0.6;
+  filter: grayscale(80%) brightness(0.5) !important;
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+  pointer-events: none;
 }
 
 .card-perspective.not-playable:hover {
@@ -2809,11 +2813,11 @@ onUnmounted(() => {
     translateX(var(--card-translate-x, 0))
     translateY(calc(var(--card-translate-y, 0) - 20px))
     rotateZ(var(--card-rotation, 0deg))
-    rotateX(-10deg);
-  z-index: inherit;
+    rotateX(-10deg) !important;
+  z-index: 1 !important;
   box-shadow: 
     0 8px 16px rgba(0, 0, 0, 0.4),
-    0 2px 0 rgba(255, 255, 255, 0.8) inset;
+    0 2px 0 rgba(255, 255, 255, 0.8) inset !important;
 }
 
 .card-face {
