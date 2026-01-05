@@ -802,15 +802,15 @@ const bidLevels = [1, 2, 3, 4, 5, 6, 7]
 const bidSuits = ['♣', '♦', '♥', '♠', 'SA']
 const specialBids = ['Passe', 'Contre', 'Surcontre']
 
-// Ordre des couleurs pour comparaison
-const suitOrder = { '♣': 0, '♦': 1, '♥': 2, '♠': 3, 'SA': 4 }
+// Ordre des couleurs pour comparaison des enchères
+const bidSuitOrder = { '♣': 0, '♦': 1, '♥': 2, '♠': 3, 'SA': 4 }
 
 // Convertir une enchère en valeur numérique pour comparaison
 function getBidValue(bid) {
   if (!bid || bid === 'Passe' || bid === 'Contre' || bid === 'Surcontre') return -1
   const level = parseInt(bid[0])
   const suit = bid.substring(1)
-  return level * 10 + suitOrder[suit]
+  return level * 10 + bidSuitOrder[suit]
 }
 
 // Vérifier si une enchère normale est valide
