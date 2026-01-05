@@ -2020,10 +2020,10 @@ onUnmounted(() => {
 }
 
 .video-north {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  z-index: 10;
+  position: fixed;
+  top: 70px;
+  right: 100px;
+  z-index: 100;
 }
 
 .video-west {
@@ -2158,10 +2158,9 @@ onUnmounted(() => {
 }
 
 .table-felt {
-  width: auto;
-  height: 100%;
+  width: min(55vw, calc(100vh - 250px));
+  height: min(55vw, calc(100vh - 250px));
   aspect-ratio: 1;
-  max-width: 70vw;
   background: 
     radial-gradient(ellipse at 50% 30%, #3d7a37 0%, #2d5a27 50%, #1d4a17 100%);
   border-radius: 0.5rem;
