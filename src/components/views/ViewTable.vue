@@ -1080,6 +1080,37 @@ function isCardValidToPlay(card) {
   return !hasLeadSuit
 }
 
+// Vérifier si une carte du MORT est valide à jouer
+function isDummyCardValidToPlay(card) {
+  // Déterminer la couleur d'entame
+  const playOrder = getPlayOrder()
+  let leadSuit = null
+  for (const pos of playOrder) {
+    if (currentTrickCards.value[pos]) {
+      leadSuit = currentTrickCards.value[pos].suit
+      break
+    }
+  }
+  
+  // Si pas de couleur d'entame, toutes les cartes sont jouables
+  if (!leadSuit) return true
+  
+  // Si la carte est de la couleur demandée, jouable
+  if (card.suit === leadSuit) return true
+  
+  // Vérifier si le MORT a la couleur demandée
+  const dummyHand = allHands.value[dummy.value] || []
+  const dummyHasLeadSuit = dummyHand.some(c => c.suit === leadSuit)
+  return !dummyHasLeadSuit
+}
+
+// Vérifier si une carte du mort doit être grisée
+function shouldDummyCardBeGreyed(card) {
+  if (currentPhase.value !== 'playing') return false
+  if (!canPlayForDummy.value) return false
+  return !isDummyCardValidToPlay(card)
+}
+
 // Vérifier si une carte doit être grisée (seulement quand c'est MON tour et carte invalide)
 function shouldCardBeGreyed(card) {
   // Pas de grisage pendant les enchères
@@ -1487,10 +1518,14 @@ onUnmounted(() => {
             </div>
           </div>
           
-          <!-- Infos en haut à gauche de la table -->
+          <!-- Numéro de donne en haut à gauche -->
           <div class="table-top-left-info">
             <div class="deal-number-table">Donne {{ currentDealNumber }}</div>
-            <div v-if="currentPhase === 'playing' || currentPhase === 'finished'" class="tricks-score-inline">
+          </div>
+          
+          <!-- Score des plis en bas à gauche -->
+          <div v-if="currentPhase === 'playing' || currentPhase === 'finished'" class="table-bottom-left-info">
+            <div class="tricks-score-inline">
               <span class="score-ns">NS: {{ tricksWonNS }}</span>
               <span class="score-ew">EW: {{ tricksWonEW }}</span>
             </div>
@@ -1508,7 +1543,8 @@ onUnmounted(() => {
                 class="dummy-card"
                 :class="{ 
                   'suit-red': card.suit === '♥' || card.suit === '♦',
-                  'can-play': canPlayForDummy && isCardPlayable(card)
+                  'can-play': canPlayForDummy && isDummyCardValidToPlay(card),
+                  'not-playable': shouldDummyCardBeGreyed(card)
                 }"
                 @click="canPlayForDummy && playDummyCard(card)"
               >
@@ -2368,25 +2404,25 @@ onUnmounted(() => {
 }
 
 .played-card-zone.north-zone {
-  top: 12%;
+  top: 30%;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .played-card-zone.south-zone {
-  bottom: 12%;
+  bottom: 30%;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .played-card-zone.west-zone {
-  left: 12%;
+  left: 25%;
   top: 50%;
   transform: translateY(-50%);
 }
 
 .played-card-zone.east-zone {
-  right: 12%;
+  right: 25%;
   top: 50%;
   transform: translateY(-50%);
 }
@@ -2442,7 +2478,7 @@ onUnmounted(() => {
 }
 
 /* ================================
-   INFOS EN HAUT À GAUCHE DE LA TABLE
+   INFOS SUR LA TABLE - Donne en haut, Plis en bas
    ================================ */
 .table-top-left-info {
   position: absolute;
@@ -2452,6 +2488,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.table-bottom-left-info {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 15;
 }
 
 .deal-number-table {
@@ -2530,26 +2573,26 @@ onUnmounted(() => {
 }
 
 .dummy-hand-display.dummy-N {
-  top: 15%;
+  top: 5%;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .dummy-hand-display.dummy-S {
-  bottom: 15%;
+  bottom: 5%;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .dummy-hand-display.dummy-E {
-  right: 15%;
+  right: 5%;
   top: 50%;
   transform: translateY(-50%);
   flex-direction: row-reverse;
 }
 
 .dummy-hand-display.dummy-W {
-  left: 15%;
+  left: 5%;
   top: 50%;
   transform: translateY(-50%);
   flex-direction: row;
